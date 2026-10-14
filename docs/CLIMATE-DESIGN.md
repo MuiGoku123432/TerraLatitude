@@ -1,4 +1,4 @@
-# Shared climate implementation — 0.3.0-test
+# Shared climate implementation — 0.3.1-test
 
 ## Status against priorities 1–5
 
@@ -79,10 +79,12 @@ surfaceT = FTF elevation curve(seaT, predicted ground elevation, saved strength)
 moisture = lerp(native FTF moisture, NTpair.humidity, n * h)
 ```
 
-The retained schema-1 arithmetic calls FTF `TemperatureShaping.applyNormalized`
-with normalized inland elevation, the native above-ground gate and saved strength.
-FTF also retains its separate native float precision contract for its own cells.
-It is applied once. Terrain below that gate receives no additional height cooling.
+The schema-1 altitude formula is retained locally with its original double
+rounding, using FTF's normalized inland elevation, above-ground gate and the saved
+strength. The native FTF float helper has a different precision contract; replacing
+this small compatibility calculation would change existing quantized output.
+The addon does not call the excluded `TemperatureShaping.applyNormalized` helper.
+Altitude is applied once. Terrain below that gate receives no additional height cooling.
 Humidity retains FTF's existing terrain shaping through its native input; no second
 rain-shadow/coastal correction is layered on. Existing upstream global FTF behavior
 is not replaced by an independent weather model.

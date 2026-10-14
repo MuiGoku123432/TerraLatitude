@@ -1,5 +1,8 @@
 # TerraLatitude 0.3.0: native FTF integration
 
+Historical record. [Version 0.3.1](PR-API-COMPATIBILITY.md) removes the dependency
+on the local-only double helper and uses the smaller API actually proposed in PR #301.
+
 Status: implemented and verified offline on 2026-10-14. Both source repositories
 changed. Neither artifact was installed, and no game, server or world was launched.
 This completes the bounded source/API work for M1; runtime ownership, performance

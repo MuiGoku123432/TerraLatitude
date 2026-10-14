@@ -1,6 +1,6 @@
 # Validation
 
-Current release: [0.3.0 native integration](M1-NATIVE-INTEGRATION.md), built and verified
+Current release: [0.3.1 PR API compatibility](PR-API-COMPATIBILITY.md), built and verified
 offline. The record below describes the earlier 0.2.1 release and its server tests.
 
 ## 0.2.1-test reference validation

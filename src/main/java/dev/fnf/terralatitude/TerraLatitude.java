@@ -14,13 +14,14 @@ public final class TerraLatitude {
     public static final String MOD_ID = "terralatitude";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
     public TerraLatitude(IEventBus modBus, ModContainer container) {
+        FtfApi.requireSupported();
         container.registerConfig(ModConfig.Type.COMMON, IntegrationConfig.SPEC, "terralatitude-common.toml");
         modBus.addListener(this::loading);
         modBus.addListener(this::reloading);
         NeoForge.EVENT_BUS.addListener(WorldProfiles::starting);
         NeoForge.EVENT_BUS.addListener(WorldProfiles::stopped);
         NeoForge.EVENT_BUS.addListener(ClimateCommands::register);
-        LOGGER.info("TerraLatitude integrated climate registered (experimental 0.2.1). Saved world profiles control generation.");
+        LOGGER.info("TerraLatitude integrated climate registered (experimental 0.3.1). Saved world profiles control generation.");
     }
     private void loading(ModConfigEvent.Loading event) {
         if (event.getConfig().getSpec() == IntegrationConfig.SPEC) IntegrationConfig.refresh();

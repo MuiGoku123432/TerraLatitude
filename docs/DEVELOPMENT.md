@@ -1,4 +1,4 @@
-# Development handoff — 0.3.0-test
+# Development handoff — 0.3.1-test
 
 ## Previous runtime correction
 
@@ -33,34 +33,30 @@ See [validation and evidence](VALIDATION.md).
 
 ## Native integration progress
 
-The input/composition split, diagnostic reuse and native FTF API integration are
-implemented. [Results, reuse map and supported JAR pair](M1-NATIVE-INTEGRATION.md)
-record source provenance and compiled-binary comparisons for both projects.
-FTF `Climate` and `ClimateModule` were modified; `TemperatureShaping` was added.
-TerraLatitude no longer has private FTF accessors or its own coordinate-warp math.
-Schema-1 results and the existing ownership/injector contracts remain unchanged.
-No artifact was installed or world launched. Offline progress does not complete
-all runtime/performance requirements of M0/M1.
+Version 0.3.1 now uses only the public raw API actually proposed in FTF PR #301.
+[Compatibility evidence and the exact build pair](PR-API-COMPATIBILITY.md) record
+its dependency pin, original-rounding parity and supported/unsupported API checks.
+TerraLatitude retains the small schema-1 altitude calculation locally, with bytecode
+identical to 0.2.1. FTF remains authoritative for regional inputs, warping and terrain
+height normalization. No private field accessors or coordinate duplication returned.
+
+No artifact was installed or world launched. Runtime startup, live ownership and
+performance acceptance remain pending. The earlier [native integration record](M1-NATIVE-INTEGRATION.md)
+describes the superseded 0.3.0 local test dependency.
 
 ## Next work
 
 The [integration specification](INTEGRATION-SPEC.md) is the scope and acceptance
 reference for the next iteration:
 
-1. Align the next TerraLatitude test version with the smaller API proposed in
-   [FTF PR #301](https://github.com/ETcodehome/FreeTerraForged/pull/301). Keep the
-   schema-1 double-rounding compatibility calculation in the addon, preserving
-   existing world output; use FTF for raw inputs, warping and height normalization.
-   Pin and document the resulting build pair. Do not assume the current 0.3.0 JAR
-   works with the PR's float-only altitude helper or an unmodified FTF release.
-2. M0/M1: owner-test the matched pair, verify live ownership and unchanged generation,
+1. M0/M1: owner-test the matched pair, verify live ownership and unchanged generation,
    then measure cold/warm sampler cost and generation responsiveness. The climate
    source reuse and offline arithmetic work are complete; whole-source artifact
    provenance is not claimed. Optimize only where profiling identifies a useful gain.
-3. M2: investigate a bounded preview/profile integration after the generation path
+2. M2: investigate a bounded preview/profile integration after the generation path
    is verified. Defer it if it requires broad lifecycle or cached-cell rewrites.
-4. M3: refine existing biome-placement rules where test evidence shows gaps.
-5. M4: use existing Streams bank profiles for local ecology without changing its
+3. M3: refine existing biome-placement rules where test evidence shows gaps.
+4. M4: use existing Streams bank profiles for local ecology without changing its
    flow simulation or introducing new hydrology inputs.
 
 Reuse existing FTF capabilities first. Where an integration boundary is missing,
@@ -74,7 +70,7 @@ Implementation and installation are separate from this specification update.
 
 ## Reference pack
 
-Minecraft1.21.1, NeoForge21.1.257, FTF1.0.0007-climate-api.1 paired test build, NT1.1.10, RU0.6.2,
+Minecraft1.21.1, NeoForge21.1.257, FTF PR #301 at 2228f6c5 (version1.0.0010), NT1.1.10, RU0.6.2,
 Lithostitched1.8.0. Runtime reads actual preset levels and fingerprints the full
 preset; do not infer world height or sea level from an example. Common defaults:
 temperature1.0, moisture0.5, transition radius128; saved NT influence multiplies

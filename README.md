@@ -2,9 +2,9 @@
 
 Latitude bands that respect the landscape.
 
-**0.3.0-test** integrates Natural Temperature's annual climate with FreeTerraForged
+**0.3.1-test** integrates Natural Temperature's annual climate with FreeTerraForged
 regional climate and elevation, before FTF/RU/Lithostitched choose biomes. It targets
-Minecraft 1.21.1, NeoForge 21.1.257, the paired FTF 1.0.0007-climate-api.1 build, and NT 1.1.10.
+Minecraft 1.21.1, NeoForge 21.1.257, the pinned FTF PR #301 build (version 1.0.0010), and NT 1.1.10.
 
 This is an experimental build. The owner tested 0.2.0 in-world and its transects
 exposed a sampler injection-order bug: NT returned before the integration ran.
@@ -20,27 +20,28 @@ contract cleanup, preview consistency, diagnostics, and targeted pack refinement
 
 This repository contains experimental source and offline verification fixtures;
 it does not publish game dependencies or downloadable release artifacts.
-Version 0.3.0 requires the exact locally built FTF companion recorded in
-[the integration evidence](docs/M1-NATIVE-INTEGRATION.md).
+Version 0.3.1 uses the public raw-climate API from
+[FTF PR #301](https://github.com/ETcodehome/FreeTerraForged/pull/301), tested at
+commit `2228f6c57f7457a4a0d516f9e5983627c3087ffd`. It no longer relies on the
+extra double-precision helper that was excluded from that PR.
 
-[FTF PR #301](https://github.com/ETcodehome/FreeTerraForged/pull/301) proposes the
-reusable raw-climate API and native float altitude helper. It deliberately omits
-the double-precision compatibility helper currently used by TerraLatitude 0.3.0.
-That PR alone is therefore **not a drop-in dependency for this version**. The next
-compatibility step is to keep legacy rounding in TerraLatitude and use only the
-shared API proposed upstream. See [next work](docs/DEVELOPMENT.md#next-work).
+The PR build shares version `1.0.0010` with its upstream base. **The version label
+alone does not establish compatibility.** The offline build pins the tested JAR
+checksum, and startup checks for the required raw API before registering world
+lifecycle handlers. An unmodified FTF build without this API is rejected clearly.
 
-## 0.3.0 native FTF integration
+## 0.3.1: match the proposed FTF API
 
-FTF now exposes its raw regional climate and explicit elevation helpers.
-TerraLatitude calls them directly, removing all six private-field accessors and
-its copied edge/warp arithmetic. Schema-1 profiles and numerical output are
-preserved. This version requires the matched FTF API test JAR; the original FTF
-JAR is insufficient. Both projects changed, but neither JAR was installed.
+FTF supplies raw regional climate, biome-edge/coordinate warping, height conversion
+and normalized elevation. TerraLatitude retains only its small schema-1 altitude
+formula locally, because substituting the native float helper would change existing
+world rounding. No private noise-field accessors or copied coordinate warping return.
 
-See [native integration results and artifact pair](docs/M1-NATIVE-INTEGRATION.md).
-All new verification is offline. Preview and world-generation performance remain
-unverified; advanced climate/hydrology work is deferred.
+See [compatibility results and build pair](docs/PR-API-COMPATIBILITY.md).
+Saved settings, the climate model identifier, injector order and output are preserved
+in the supplied-input regression tests. Runtime startup/world testing and full
+sampler performance remain pending; advanced climate/hydrology work is deferred.
+The earlier [0.3.0 implementation record](docs/M1-NATIVE-INTEGRATION.md) is historical.
 
 ## Previous 0.2.2 integration foundation
 
@@ -118,9 +119,10 @@ NT's native mode algorithms execute from the dependency; they are not bundled.
 1. Use a separate test instance and a fresh FTF world. Keep a copy of the intended
    preset/configs for comparisons. Previously generated chunks retain their biomes.
 2. Remove any prior TerraLatitude JAR and the original `fnf_altitude` prototype.
-   Add `dist/terralatitude-0.3.0-test-1.21.1.jar` and replace FTF with the matched
-   `freeterraforged-1.0.0007-climate-api.1-neoforge-1.21.1.jar` from the FTF
-   project’s `build/climate-api-patch/` folder. Keep one JAR per mod.
+   Add `dist/terralatitude-0.3.1-test-1.21.1.jar` and replace FTF with the matched
+   `freeterraforged-1.0.0010.jar` built from the exact FTF PR revision above.
+   This is a newer upstream FTF base; use a comparison world and verify pack
+   compatibility rather than assuming it matches the old custom FTF build. Keep one JAR per mod.
 3. Start normally. The startup registration message alone does not prove runtime
    sampling succeeded. A new world profile is written at its first owned FTF sample.
 4. Run `/terralatitude status`, then `/terralatitude sample` in the Overworld.
@@ -190,7 +192,7 @@ units, not Celsius, and predictions do not rewrite existing chunks.
 
 Requires Python 3.11+ and Java 21. Copy `build-settings.example.toml` to ignored `build.local.toml` and set paths
 to an existing prepared Prism instance and its dependencies.
-Set `ftf_jar` to the matched API artifact without installing it into the instance.
+Set `ftf_jar` to the exact tested PR artifact without installing it into the instance.
 No game or dependency downloads are performed; the addon bundles no upstream classes.
 On this Mac, use `/opt/homebrew/bin/python3` if the default Python is too old.
 
@@ -199,6 +201,7 @@ python3 build.py
 python3 verify.py
 python3 tools/test_nt_adapter.py
 python3 tools/test_sampler_order.py
+python3 tools/test_ftf_api.py --unsupported-ftf-jar /path/to/original-ftf-1.0.0007.jar
 python3 tools/test_composition.py --baseline-jar /path/to/terralatitude-0.2.1-test-1.21.1.jar
 python3 -m unittest discover -s tests -p 'test_audit_pack.py' -v
 python3 tools/audit_pack.py

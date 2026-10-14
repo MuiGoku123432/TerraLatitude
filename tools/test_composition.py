@@ -46,7 +46,7 @@ def main() -> int:
         addon = ROOT / "dist" / build.ARTIFACT
         report["addon_sha256"] = build.sha256(addon)
         with zipfile.ZipFile(addon) as current, zipfile.ZipFile(args.baseline_jar) as legacy:
-            unchanged = ["WorldProfiles", "NaturalClimateAdapter", "ClimateProfile",
+            unchanged = ["WorldProfiles", "ClimateMath", "NaturalClimateAdapter", "ClimateProfile",
                          "mixin/NtTemperatureSettingsMixin", "mixin/NtHumiditySettingsMixin"]
             report["unchanged_contract_classes"] = {}
             for name in unchanged:

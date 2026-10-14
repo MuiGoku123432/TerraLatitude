@@ -18,11 +18,11 @@ import zipfile
 from dataclasses import dataclass
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "0.3.0-test"
+VERSION = "0.3.1-test"
 ARTIFACT = f"terralatitude-{VERSION}-1.21.1.jar"
-FTF_NAME = "freeterraforged-1.0.0007-climate-api.1-neoforge-1.21.1.jar"
+FTF_NAME = "freeterraforged-1.0.0010.jar"
 NT_NAME = "naturaltemperature-1.1.10-NEOFORGE-MC-1.21.1.jar"
-FTF_SHA256 = "5c43eeb2426d191fe7f8a5a992159dece09a4827fd4793e45b2742aaac769a33"
+FTF_SHA256 = "60f40abb32b32ebbef3780b57ac5de1340c1192642b4ff93f5a1a6fd9cbf69f0"
 NT_SHA256 = "6ee8a45d1fce319c5f6654c08c73663254b7fee7c970710249537329b0fb1d2a"
 FTF_TARGET = "etcodehome.freeterraforged.world.worldgen.runtime.WorldgenPlans$SamplerDecoration"
 TARGET_DESCRIPTOR = "(Lnet/minecraft/world/level/biome/Climate$Sampler;III)Lnet/minecraft/world/level/biome/Climate$TargetPoint;"

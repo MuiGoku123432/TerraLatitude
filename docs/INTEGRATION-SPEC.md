@@ -1,7 +1,8 @@
 # TerraLatitude integration specification
 
-Status: 0.3.0 native API integration is built and verified offline; see
-[native integration, source reuse map and evidence](M1-NATIVE-INTEGRATION.md).
+Status: 0.3.1 now matches the API submitted in FTF PR #301; see
+[PR compatibility and evidence](PR-API-COMPATIBILITY.md). The earlier
+[native integration record](M1-NATIVE-INTEGRATION.md) preserves the source reuse map.
 The earlier [0.2.2 foundation](M1-PROGRESS.md) is retained as historical evidence.
 Full M0/M1 runtime/performance acceptance remains pending.
 Updated: 2026-10-14. Baseline: TerraLatitude `0.2.1-test`, commit `762a41c`.
@@ -133,9 +134,10 @@ and sea level. It is not the source of the altitude correction.
 ### Baseline duplication and current resolution
 
 The 0.2.1/0.2.2 baseline mirrored the short FTF altitude formula and reconstructed
-regional coordinates using private-field accessors. Version 0.3.0 instead calls
-the paired FTF raw API and explicit-input elevation helper. Height normalization
-continues to call FTF directly. Raw noise still needs reevaluation after the terrain
+regional coordinates using private-field accessors. Version 0.3.1 uses the FTF
+raw API submitted upstream and calls FTF height normalization directly. The narrow
+schema-1 double-rounding compatibility formula stays local; the helper introduced
+for it in the 0.3.0 FTF test build was excluded from PR #301 and is no longer used. Raw noise still needs reevaluation after the terrain
 lookup; this release adds no raw-value cell cache and makes no throughput claim.
 
 Calling FTF's existing private `modifyTemp` directly is not the desired shortcut:
@@ -143,7 +145,8 @@ the pinned method reads `PresetManager.PM.climateSettings`, a global preset valu
 An integration helper must accept the owner-specific saved strength explicitly.
 
 The schema-1 integration contract uses double arithmetic while native FTF uses
-intermediate floats. The new FTF helper explicitly retains both contracts.
+intermediate floats. Version 0.3.1 retains the legacy double contract locally,
+while upstream FTF retains its native float contract.
 An isolated comparison of 1,286,285 synthetic cases found 69,531 different final
 quantized results, with a maximum difference of one unit, or 0.0001 climate unit.
 This reconstructs the inspected FTF arithmetic; it does not execute FTF's runtime

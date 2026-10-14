@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.1-test — 2026-10-14
+
+- Remove the dependency on the double-precision FTF helper excluded from PR #301.
+- Keep schema-1 altitude rounding locally; compiled ClimateMath matches 0.2.1 exactly.
+- Compile and verify against the exact public PR revision, retaining native raw inputs
+  and height normalization without private field hooks.
+- Check the required raw API at startup because the PR shares its base version label.
+- Update dependency metadata, build pin, diagnostics version and compatibility docs.
+- No installation or in-world testing performed.
+
 ## 0.3.0-test — 2026-10-14
 
 - Require the paired FTF 1.0.0007-climate-api.1 API test build.

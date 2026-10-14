@@ -74,7 +74,7 @@ def main() -> int:
             classes = [p for p in names if p.endswith(".class")]
             require(len(names) == len(set(names)), "Archive has no duplicate entries")
             require(classes and all(p.startswith("dev/fnf/terralatitude/") for p in classes), "No upstream classes are bundled")
-            required = {"TerraLatitude", "IntegratedClimate", "ClimateComposition", "ClimateMath", "ClimateProfile", "WorldProfiles", "ClimateCommands", "RawClimateAccess", "NaturalClimateAdapter"}
+            required = {"TerraLatitude", "IntegratedClimate", "ClimateComposition", "ClimateMath", "ClimateProfile", "WorldProfiles", "ClimateCommands", "RawClimateAccess", "NaturalClimateAdapter", "FtfApi"}
             require(all(f"dev/fnf/terralatitude/{n}.class" in names for n in required), "Integrated climate, world profiles, diagnostics, and adapters are packaged")
             require(all(struct.unpack(">H", z.read(p)[6:8])[0] == 65 for p in classes), "All packaged classes target Java 21")
             require(not any(p.endswith("Test.class") for p in classes), "Offline test classes are excluded")
@@ -88,7 +88,7 @@ def main() -> int:
             depmeta = {d["modId"]: d for d in metadata["dependencies"]["terralatitude"]}
             old = depmeta.get("fnf_altitude", {})
             require(old.get("type") == "incompatible" and old.get("versionRange") == "[0,)" and old.get("side") == "BOTH", "Old altitude prototype is incompatible to prevent duplicate cooling")
-            for name, version in {"minecraft": "[1.21.1]", "freeterraforged": "[1.0.0007-climate-api.1]", "naturaltemperature": "[1.1.10]"}.items():
+            for name, version in {"minecraft": "[1.21.1]", "freeterraforged": "[1.0.0010]", "naturaltemperature": "[1.1.10]"}.items():
                 dep = depmeta.get(name, {})
                 require(dep.get("type") == "required" and dep.get("versionRange") == version and dep.get("side") == "BOTH", f"Both sides require tested {name} {version}")
             neo = depmeta.get("neoforge", {})
@@ -102,7 +102,7 @@ def main() -> int:
 
         ftf = deps[3]
         nt = settings.instance / "minecraft/mods" / NT_NAME
-        for path, name, expected in ((ftf, "freeterraforged", "1.0.0007-climate-api.1"), (nt, "naturaltemperature", "1.1.10")):
+        for path, name, expected in ((ftf, "freeterraforged", "1.0.0010"), (nt, "naturaltemperature", "1.1.10")):
             with zipfile.ZipFile(path) as z:
                 metadata = tomllib.loads(z.read("META-INF/neoforge.mods.toml").decode())
                 require(next(m["version"] for m in metadata["mods"] if m["modId"] == name) == expected, f"Pinned installed {name} declares {expected}")
@@ -158,8 +158,10 @@ def main() -> int:
                 and "com/naturaltemperature" not in shaping,
                 "Native elevation helper is independent of presets and integration mods")
         math = inspect("dev.fnf.terralatitude.ClimateMath")
-        require("TemperatureShaping.applyNormalized:" in math and "Math.pow:" not in math,
-                "TerraLatitude delegates altitude arithmetic to FTF")
+        require("applyNormalized" not in shaping,
+                "Tested FTF PR dependency does not contain the excluded double-precision helper")
+        require("TemperatureShaping" not in math and "Math.pow:" in math,
+                "Schema-1 rounding stays local; TerraLatitude does not link to an excluded FTF helper")
         methods = method_sections(module)
         desc = "(Letcodehome/freeterraforged/world/worldgen/cell/Cell;FFFFZ)V"
         body = next((b for d, b in methods.get("apply", []) if d == desc), "")
@@ -224,6 +226,10 @@ def main() -> int:
         entrypoint = inspect("dev.fnf.terralatitude.TerraLatitude")
         require("net.neoforged.fml.common.Mod" in entrypoint and 'value="terralatitude"' in entrypoint, "Entrypoint carries the TerraLatitude @Mod annotation")
         require("terralatitude-common.toml" in entrypoint and "fnf-altitude-common.toml" not in entrypoint, "Entrypoint registers the TerraLatitude common configuration")
+        constructor = method_sections(entrypoint).get("dev.fnf.terralatitude.TerraLatitude", [])
+        ctor_body = constructor[0][1] if len(constructor) == 1 else ""
+        require(0 <= ctor_body.find("FtfApi.requireSupported:") < ctor_body.find("ModContainer.registerConfig:"),
+                "Entrypoint validates the raw API before config and lifecycle registration")
         require("WorldProfiles" in entrypoint and "ClimateCommands" in entrypoint, "Entrypoint registers world lifecycle and diagnostic handlers")
         report["model_test_output"] = build.get("model_test_output", "")
     except Exception as exc:

@@ -4,7 +4,7 @@ license="MIT"
 
 [[mods]]
 modId="terralatitude"
-version="0.3.0-test"
+version="0.3.1-test"
 displayName="TerraLatitude"
 authors="F&F local compatibility project"
 description="Experimental shared latitude, regional moisture, and elevation climate for FTF biome selection. Includes saved world profiles and diagnostics; preserves terrain geometry."
@@ -37,7 +37,8 @@ side="BOTH"
 [[dependencies.terralatitude]]
 modId="freeterraforged"
 type="required"
-versionRange="[1.0.0007-climate-api.1]"
+# PR #301 has the same version as its base; startup also checks the required API.
+versionRange="[1.0.0010]"
 ordering="AFTER"
 side="BOTH"
 

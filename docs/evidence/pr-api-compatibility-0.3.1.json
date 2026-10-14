@@ -1,0 +1,68 @@
+{
+  "version": "0.3.1-test",
+  "date": "2026-10-14",
+  "scope": "Offline verification against the exact submitted FTF API; no installation or game launch",
+  "ftf_pr": "https://github.com/ETcodehome/FreeTerraForged/pull/301",
+  "ftf_commit": "2228f6c57f7457a4a0d516f9e5983627c3087ffd",
+  "ftf_version": "1.0.0010",
+  "ftf_sha256": "60f40abb32b32ebbef3780b57ac5de1340c1192642b4ff93f5a1a6fd9cbf69f0",
+  "artifact": {
+    "sha256": "2f914fbfa74c3226f27fd6ad92bd1a92ceafad1119622df3344aca436ae64d17",
+    "bytes": 60299,
+    "classes": 36,
+    "entries": 41
+  },
+  "schema": 1,
+  "model": "ftf-nt-legacy-0.2.1",
+  "unchanged_legacy_classes": {
+    "WorldProfiles": true,
+    "ClimateMath": true,
+    "NaturalClimateAdapter": true,
+    "ClimateProfile": true,
+    "mixin/NtTemperatureSettingsMixin": true,
+    "mixin/NtHumiditySettingsMixin": true
+  },
+  "composition_tests": "WARN StatusConsoleListener Advanced terminal features are not available in this environment\nPASS: 12672 compiled-0.2.1 comparisons; 136580 assertions; exact T/H and intermediates, six target axes, bypasses, cave threshold, saved schema, and concurrent profiles.\nCOMPOSITION_BENCHMARK [53909125, 50467709, 51763583, 53579875, 51367750, 51956416, 58525042] [49918583, 53988584, 55541666, 49954167, 55049458, 50004208, 49398708]",
+  "populated_cell_tests": "PASS: 252 populated-cell cases; 2035 assertions; native FTF Levels, heights/gates, raw noise, edge/warp inputs, and immutable cell snapshots.",
+  "api_guard": {
+    "passed": true,
+    "scope": "Direct API guard invocation, not mod-loader startup",
+    "addon_sha256": "2f914fbfa74c3226f27fd6ad92bd1a92ceafad1119622df3344aca436ae64d17",
+    "supported_ftf_sha256": "60f40abb32b32ebbef3780b57ac5de1340c1192642b4ff93f5a1a6fd9cbf69f0",
+    "unsupported_ftf_sha256": "0ab7d71948cc9b43037e0f02611fb3be782c84379e034ab7e487fd98a1fc5529",
+    "supported": "FtfApiTest passed (PR raw API accepted)",
+    "unsupported": "FtfApiTest passed (missing raw API rejected clearly)"
+  },
+  "ordinary_tests": [
+    {
+      "class": "dev.fnf.terralatitude.AltitudeModelTest",
+      "output": "AltitudeModelTest passed (514294 assertions)"
+    },
+    {
+      "class": "dev.fnf.terralatitude.ClimateMathTest",
+      "output": "ClimateMathTest passed (21212 assertions)"
+    },
+    {
+      "class": "dev.fnf.terralatitude.ClimateProfileTest",
+      "output": "ClimateProfileTest passed (21 assertions)"
+    },
+    {
+      "class": "dev.fnf.terralatitude.DiagnosticMathTest",
+      "output": "DiagnosticMathTest passed (surface alignment, both transect axes, cap and overflow)"
+    },
+    {
+      "class": "dev.fnf.terralatitude.FtfApiTest",
+      "output": "FtfApiTest passed (PR raw API accepted)"
+    }
+  ],
+  "static_checks": 60,
+  "nt_assertions": 191274,
+  "sampler_order_assertions": 41,
+  "pack_audit_tests": 10,
+  "limits": [
+    "No Mixin bootstrap, actual mod-loader startup or world generation.",
+    "Compiled legacy comparison supplies native/raw inputs; it is not whole-world equivalence across FTF versions.",
+    "The PR base is newer than the prior locally patched FTF and does not include unrelated fork PRs.",
+    "Composition timing is inconclusive; complete sampler and chunk generation costs unmeasured."
+  ]
+}

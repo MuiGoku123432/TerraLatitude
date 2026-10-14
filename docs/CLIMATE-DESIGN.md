@@ -1,4 +1,4 @@
-# Shared climate implementation — 0.2.0-test
+# Shared climate implementation — 0.2.1-test
 
 ## Status against priorities 1–5
 
@@ -10,13 +10,15 @@
 | 4. World settings/diagnostics | Persisted NT+TerraLatitude profile, preset fingerprint, status/sample/CSV commands, pack audit. | No client preview synchronization; full pack rules and all external mod settings are not frozen. |
 | 5. Transitions | Optional deterministic five-tap smoothing of NT climate, with existing NT/FTF variation. | This does not guarantee an ecological transition biome exists in the installed palette. |
 
-No world or game was launched. Live integration order and actual generated results
-remain runtime validation work.
+Owner-run 0.2.0 transects found a runtime ordering failure; the corrected 0.2.1
+build requires a fresh in-world check. Automated verification does not launch a game.
 
 ## Sampling and ownership
 
-`IntegratedSamplerMixin` injects at the head of `Climate.Sampler.sample`, priority
-2000, ahead of NT's default-priority cancellable injection. It cancels only for an
+`IntegratedSamplerMixin` injects at the head of `Climate.Sampler.sample` with
+explicit injector order 900, ahead of NT's default injector order 1000. Mixin
+priority remains 2000, but does not establish execution precedence: the installed
+Mixin runtime processed NT first when both callbacks used the default order. It cancels only for an
 enabled, saved, FTF-owned Overworld sample belonging to the active server. It does
 not call `sample` recursively and never temporarily changes NT global config.
 FTF's existing outer sampler wrappers and later `SamplerDecoration` stages remain.
@@ -108,7 +110,8 @@ merely from the presence of a river.
 
 ## Validation boundaries and next questions
 
-- Test the actual Mixin application and full pack startup.
+- Confirm corrected 0.2.1 callback ordering during owner-run generation; 0.2.0
+  loaded all mixins but NT canceled before TerraLatitude's callback.
 - Confirm sea-level, upland, mountain, cave, river, and coastal selection across seeds.
 - Measure repeated regional-noise evaluation and five-mode-evaluation overhead.
 - Compare operator CSV output with generated biome IDs and later pack replacements.

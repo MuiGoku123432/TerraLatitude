@@ -1,4 +1,12 @@
-# Development handoff — 0.2.0-test
+# Development handoff — 0.2.1-test
+
+## Runtime correction
+
+Owner-run 0.2.0 diagnostics on 2026-10-14 exposed the early-return ordering bug.
+Explicit injector order 900 supersedes the previous reliance on mixin priority.
+Status and transects now expose expected versus sampled climate. Ocean samples
+use a quart-aligned height at/above the water surface rather than the seabed.
+Existing profile schema is unchanged; previously generated chunks stay as they are.
 
 ## Implemented this iteration
 
@@ -12,11 +20,12 @@
 - Operator status, surface sample, and bounded north–south CSV transect commands.
 - Read-only pack audit for disabled placements, replacements, and packaged predicates.
 - Pure tests, bytecode/package checks, original-NT numerical parity fixture, and
-  reproducible offline builds. No game/server/world launch or active installation.
+  reproducible offline builds. Automated work does not launch a game or world;
+  the owner supplies runtime test results.
 
 ## Next work
 
-1. User tests a separate fresh FTF world. Confirm full pack startup, profile creation,
+1. User tests the corrected build in a separate fresh FTF world. Confirm full pack startup, profile creation,
    `/terralatitude status`, sampled/generated biome agreement, caves, rivers, coasts,
    save/reopen consistency, and generation cost. Record seed, configs, preset, and
    profile fingerprint with results.

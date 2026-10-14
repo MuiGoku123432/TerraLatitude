@@ -4,7 +4,7 @@ license="MIT"
 
 [[mods]]
 modId="terralatitude"
-version="0.2.0-test"
+version="0.2.1-test"
 displayName="TerraLatitude"
 authors="F&F local compatibility project"
 description="Experimental shared latitude, regional moisture, and elevation climate for FTF biome selection. Includes saved world profiles and diagnostics; preserves terrain geometry."

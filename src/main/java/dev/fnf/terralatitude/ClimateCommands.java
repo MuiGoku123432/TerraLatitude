@@ -26,31 +26,32 @@ public final class ClimateCommands {
                                                 IntegerArgumentType.getInteger(c, "step")))))));
     }
     private static int status(CommandSourceStack source) {
-        var sampler = source.getLevel().getChunkSource().randomState().sampler();
-        var result = IntegratedClimate.evaluate(sampler, QuartPos.fromBlock((int) Math.floor(source.getPosition().x)),
-                QuartPos.fromBlock((int) Math.floor(source.getPosition().y)), QuartPos.fromBlock((int) Math.floor(source.getPosition().z)));
-        if (result == null) { source.sendFailure(Component.literal("TerraLatitude is inactive for this sampler/dimension or disabled world profile.")); return 0; }
-        var p = result.profile();
-        source.sendSuccess(() -> Component.literal("TerraLatitude profile " + p.fingerprint().substring(0, 12)
-                + "; NT mode=" + p.naturalTemperature().mode() + "; temperature=" + p.temperatureStrength()
-                + "; moisture=" + p.moistureStrength() + "; transition=" + p.transitionRadius() + " blocks."), false);
-        return 1;
+        try {
+            var row = inspect(source, (int) Math.floor(source.getPosition().x), (int) Math.floor(source.getPosition().z));
+            var p = row.profile();
+            source.sendSuccess(() -> Component.literal("TerraLatitude profile loaded " + p.fingerprint().substring(0, 12)
+                    + "; NT mode=" + p.naturalTemperature().mode() + "; temperature=" + p.temperatureStrength()
+                    + "; moisture=" + p.moistureStrength() + "; transition=" + p.transitionRadius()
+                    + " blocks; sampler check " + row.samplerCheck() + " at current surface (temperature/moisture)."), false);
+            return 1;
+        } catch (RuntimeException e) { source.sendFailure(Component.literal("TerraLatitude diagnostic failed: " + e.getMessage())); return 0; }
     }
     private static int sample(CommandSourceStack source) {
         try {
             var row = inspect(source, (int) Math.floor(source.getPosition().x), (int) Math.floor(source.getPosition().z));
             source.sendSuccess(() -> Component.literal(String.format(Locale.ROOT,
-                    "TerraLatitude (%d, %d, %d): T %.3f, moisture %.3f; ground %d; biome %s. Climate units, not Celsius.",
-                    row.x(), row.y(), row.z(), row.temperature(), row.humidity(), row.ground(), row.biome())), false);
+                    "TerraLatitude (%d, %d, %d): T %.4f / %.4f expected, moisture %.4f / %.4f expected; %s; ground %d; biome %s. Climate units, not Celsius.",
+                    row.x(), row.y(), row.z(), row.temperature(), row.integratedT(), row.humidity(), row.integratedH(),
+                    row.samplerCheck(), row.ground(), row.biome())), false);
             return 1;
-        } catch (RuntimeException e) { source.sendFailure(Component.literal(e.getMessage())); return 0; }
+        } catch (RuntimeException e) { source.sendFailure(Component.literal("TerraLatitude diagnostic failed: " + e.getMessage())); return 0; }
     }
     private static int transect(CommandSourceStack source, int radius, int step) {
         int count = 2 * radius / step + 1;
         if (count > 129) { source.sendFailure(Component.literal("Use a larger step: maximum 129 samples per transect.")); return 0; }
         try {
             int x = (int) Math.floor(source.getPosition().x), z = (int) Math.floor(source.getPosition().z);
-            StringBuilder csv = new StringBuilder("x,y,z,ground,temperature,humidity,raw_temperature,raw_humidity,band_temperature,band_humidity,biome\n");
+            StringBuilder csv = new StringBuilder("x,y,z,ground,temperature,humidity,raw_temperature,raw_humidity,band_temperature,band_humidity,biome,integrated_temperature,integrated_humidity,sea_level_temperature,altitude_delta,temperature_delta,humidity_delta\n");
             for (int offset = -radius; offset <= radius; offset += step) {
                 var row = inspect(source, x, Math.addExact(z, offset));
                 csv.append(row.csv()).append('\n');
@@ -74,18 +75,34 @@ public final class ClimateCommands {
         x = QuartPos.toBlock(qx); z = QuartPos.toBlock(qz);
         var raw = RawClimateAccess.sample(ftf.climateQuerySemantics().surfaceContext(), x, z);
         if (!raw.valid()) throw new IllegalStateException("FTF raw climate is unavailable.");
-        int y = raw.surfaceY(), qy = QuartPos.fromBlock(y);
+        // Sample the top of land/water, rounding upward so sea level 62 samples at 64, not 60.
+        int y = DiagnosticMath.surfaceSampleY(raw.surfaceY(), raw.seaLevel()), qy = QuartPos.fromBlock(y);
         var evaluation = IntegratedClimate.evaluate(sampler, qx, qy, qz);
         if (evaluation == null) throw new IllegalStateException("TerraLatitude is inactive for this sampler/world.");
         var actual = ftf.getWorldgenPlan().samplerDecoration().sample(sampler, qx, qy, qz);
+        var expected = evaluation.point();
         var biome = chunkSource.getGenerator().getBiomeSource().getNoiseBiome(qx, qy, qz, sampler);
         String id = biome.unwrapKey().map(k -> k.location().toString()).orElse("unregistered");
+        double integratedT = expected.temperature() / 10000.0, integratedH = expected.humidity() / 10000.0;
+        // This is the net elevation correction including final climate quantization.
+        // Pass-through temperature and randomized caves have no integrated surface correction.
+        double altitudeDelta = evaluation.regional() != null && evaluation.profile().temperatureStrength() > 0
+                && evaluation.profile().naturalTemperature().influence() > 0
+                ? integratedT - evaluation.seaLevelTemperature() : Double.NaN;
         return new Row(x, y, z, raw.surfaceY(), actual.temperature() / 10000.0, actual.humidity() / 10000.0,
-                raw.temperature(), raw.humidity(), evaluation.bandTemperature(), evaluation.bandHumidity(), id);
+                raw.temperature(), raw.humidity(), evaluation.bandTemperature(), evaluation.bandHumidity(), id,
+                integratedT, integratedH, evaluation.seaLevelTemperature(), altitudeDelta,
+                (actual.temperature() - expected.temperature()) / 10000.0,
+                (actual.humidity() - expected.humidity()) / 10000.0,
+                actual.temperature() == expected.temperature() && actual.humidity() == expected.humidity(), evaluation.profile());
     }
     private record Row(int x, int y, int z, int ground, double temperature, double humidity,
-                       double rawT, double rawH, double bandT, double bandH, String biome) {
-        String csv() { return String.format(Locale.ROOT, "%d,%d,%d,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%s",
-                x, y, z, ground, temperature, humidity, rawT, rawH, bandT, bandH, biome); }
+                       double rawT, double rawH, double bandT, double bandH, String biome,
+                       double integratedT, double integratedH, double seaLevelT, double altitudeDelta,
+                       double temperatureDelta, double humidityDelta, boolean samplerMatches, ClimateProfile profile) {
+        String samplerCheck() { return samplerMatches ? "MATCH" : "MISMATCH"; }
+        String csv() { return String.format(Locale.ROOT, "%d,%d,%d,%d,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f,%s,%.7f,%.7f,%.7f,%.7f,%.7f,%.7f",
+                x, y, z, ground, temperature, humidity, rawT, rawH, bandT, bandH, biome,
+                integratedT, integratedH, seaLevelT, altitudeDelta, temperatureDelta, humidityDelta); }
     }
 }

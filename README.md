@@ -2,12 +2,28 @@
 
 Latitude bands that respect the landscape.
 
-**0.2.0-test** integrates Natural Temperature's annual climate with FreeTerraForged
+**0.2.1-test** integrates Natural Temperature's annual climate with FreeTerraForged
 regional climate and elevation, before FTF/RU/Lithostitched choose biomes. It targets
 Minecraft 1.21.1, NeoForge 21.1.257, the pinned custom FTF 1.0.0007 build, and NT 1.1.10.
 
-This is an experimental, offline-verified build. Minecraft and worlds have not
-been launched, and the addon has not been installed into the active instance.
+This is an experimental build. The owner tested 0.2.0 in-world and its transects
+exposed a sampler injection-order bug: NT returned before the integration ran.
+0.2.1 fixes injector ordering and makes diagnostics compare intended and actual
+climate. The corrected build still needs an owner-run world test.
+
+## 0.2.1 correction
+
+The integration uses explicit injector order 900, before NT's default order 1000.
+Mixin priority 2000 alone did not establish this ordering in the installed runtime.
+The previous status command evaluated the model directly and could therefore
+report a profile despite the actual sampler skipping the correction. Status now
+compares integrated and sampled temperature/moisture at a surface point; a match
+is a numerical check, not independent proof that the hook executed.
+
+Ocean diagnostics sample at or above sea level instead of the seabed. CSV exports
+retain the ground height and include expected climate plus sampled-minus-expected
+deltas. Existing profiles are compatible. Generated chunks are not rewritten;
+use a fresh comparison world to assess the corrected distribution.
 
 ## What is implemented
 
@@ -58,7 +74,7 @@ NT's native mode algorithms execute from the dependency; they are not bundled.
 1. Use a separate test instance and a fresh FTF world. Keep a copy of the intended
    preset/configs for comparisons. Previously generated chunks retain their biomes.
 2. Remove any prior TerraLatitude JAR and the original `fnf_altitude` prototype.
-   Add `dist/terralatitude-0.2.0-test-1.21.1.jar`. Do not load both altitude addons.
+   Add `dist/terralatitude-0.2.1-test-1.21.1.jar`. Do not load both altitude addons.
 3. Start normally. The startup registration message alone does not prove runtime
    sampling succeeded. A new world profile is written at its first owned FTF sample.
 4. Run `/terralatitude status`, then `/terralatitude sample` in the Overworld.
@@ -105,10 +121,14 @@ inside enabled TerraLatitude integration.
 
 Commands require operator permission level 2 and run on the server:
 
-- `/terralatitude status` — show active profile fingerprint and controls.
+- `/terralatitude status` — show the loaded profile and compare intended versus sampled surface climate.
 - `/terralatitude sample` — inspect predicted surface climate and biome at your X/Z.
 - `/terralatitude transect 4096 128` — export a north–south line across your X/Z,
-  with ground height, raw/band/final temperature and moisture, and predicted biome.
+  with ground and sampled heights, raw/band/final climate, predicted biome,
+  integrated temperature/moisture, sea-level temperature, altitude correction, and
+  sampled-minus-integrated deltas. A zero delta means the values agree; optional
+  intermediate columns may be NaN when that calculation is bypassed (zero influence
+  or explicit underground randomization).
 
 Transects allow at most 129 samples. CSV files go under
 `<world>/terralatitude-diagnostics/`. Commands evaluate terrain/noise and biome
@@ -128,6 +148,7 @@ On this Mac, use `/opt/homebrew/bin/python3` if the default Python is too old.
 python3 build.py
 python3 verify.py
 python3 tools/test_nt_adapter.py
+python3 tools/test_sampler_order.py
 python3 -m unittest discover -s tests -p 'test_audit_pack.py' -v
 python3 tools/audit_pack.py
 ```

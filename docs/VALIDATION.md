@@ -1,26 +1,64 @@
-# Offline validation — TerraLatitude 0.2.0-test
+# Validation — TerraLatitude 0.2.1-test
 
-Status: compilation, ordinary tests, pinned-bytecode checks, NT adapter parity, and reproducibility passed. No Minecraft client, dedicated server, or world was launched.
+Status: corrected build compiles and offline checks pass. The owner ran Minecraft
+with 0.2.0 and supplied two transects; automated work did not launch a game/server/world.
+The corrected 0.2.1 still requires an owner-run test.
 
-Artifact: `dist/terralatitude-0.2.0-test-1.21.1.jar` — 54,183 bytes, 32 compiled addon classes.
-SHA-256: `c32c4871b9ee4e1eb211fc14a25dfcdde0f32449b512a3323456153972b65325`.
+Artifact: `dist/terralatitude-0.2.1-test-1.21.1.jar` — 55,472 bytes,
+33 compiled addon classes.
+SHA-256: `a8caea0ab0e4f656331934d5fdcdd5c6b18f8da4e41dba106130f603fdd71cd8`.
+
+## Runtime finding in 0.2.0
+
+The October 14 test produced 65-row and 128-row transects. All 171 land rows
+showed substantially less altitude correction than the intended model. At
+X=-7708, Z=-5216, ground Y=256, actual temperature was -0.2252; the saved preset
+and smoothed latitude temperature imply approximately -0.5261 after the native
+FTF altitude curve. These are climate coordinates, not Celsius.
+
+The debug log confirms both callback mixins loaded. Installed Mixin ordering and
+HEAD insertion put Natural Temperature's cancelling callback before TerraLatitude
+when both used default injector order 1000. Mixin priority 2000 alone was not a
+precedence guarantee. The earlier status command directly evaluated composition,
+so its profile message did not establish that worldgen received that composition.
+
+0.2.1 explicitly uses injector order 900. Status/sample compare intended and actual
+quantized temperature and humidity; transects expose both and their deltas.
+Ocean surface diagnostics no longer sample the seabed. Original saves, settings,
+profiles, and CSVs were retained.
 
 ## Checks performed
 
-- Java 21 compilation against the pinned installed Minecraft 1.21.1, NeoForge 21.1.257, FTF 1.0.0007, and NT 1.1.10 dependencies.
-- All four ordinary test programs passed: altitude baseline, integrated climate math, world-profile serialization/validation/file handling, and raw climate coordinate math. Assertion counts include parameter sweeps and are not counts of distinct test cases.
-- 49 static package and bytecode checks passed. These cover the exact sampler descriptor and declared priority, six raw FTF accessor fields, the four active mixins, dependency hashes, metadata, source fingerprints, and downstream FTF selection calls.
-- The NT parity fixture passed across built-in modes 0–10. Its 24 compiled redirect handlers were exercised against 68 temperature and 84 humidity field reads in isolated transformed dependency fixtures. Nested scopes, exceptional cleanup, thread isolation, saved zone settings, and unsupported custom modes were checked.
-- Two clean Java/test builds produced identical JAR bytes.
+- Java 21 compilation against exact pinned Minecraft/NeoForge/FTF/NT dependencies.
+- Five ordinary test programs passed, including 15 targeted surface-coordinate
+  cases for sea-level rounding, negative heights, and overflow handling.
+- 50/50 static package/bytecode checks passed, now checking injector order rather
+  than relying on class mixin priority for precedence.
+- The sampler-order regression passed 41 assertions: old ordering returns NT for
+  an owned sample, explicit order 900 returns TerraLatitude, and unowned samples
+  still return NT. Reversed registration and equal class priorities were checked.
+- NT calculator parity passed 191,274 assertions across built-in modes 0–10,
+  settings, seeds, cave modes, and snapshot/thread isolation.
+- All 10 pack-audit parsing/inventory tests passed.
+- The final project rebuild produced the identical JAR hash and passed all 50
+  static checks. Installed locally with 0.2.0 backed up; activation needs a full
+  Minecraft restart. No save/configuration files or remote server were changed.
 
-## Runtime limits
+The ordering regression uses the installed Mixin comparator, HEAD locator,
+injection-node tracking, and insertion implementation with compiled synthetic
+cancelling callbacks. It does **not** bootstrap the full transformer, execute
+FTF's wrapper, or generate a world. The NT parity harness likewise uses isolated
+transformed dependency fixtures. Passing these checks is not full-pack validation.
 
-These checks do **not** prove that the actual Mixin runtime applies these hooks, that injection ordering wins against every mod, or that the full pack starts. The parity harness explicitly uses isolated bytecode fixtures and does not bootstrap Mixin or Minecraft.
+Reports under `reports/` record artifact/dependency/source hashes and detailed
+results, including `sampler-order.json` and `runtime-020-transect-findings.json`.
 
-In-world testing still needs to assess biome distribution, river/coast outcomes, cave behavior, world-profile lifecycle and command access, actual generation cost, and visible transitions. FTF's existing preset preview reads native cached cell values; TerraLatitude diagnostics report the composed climate used by the addon.
+## Owner-run confirmation
 
-Machine-readable evidence is generated under `reports/`: `build.json`, `verification.json`, `nt-adapter-parity.json`, and `reproducibility.json`. The build report records all production and offline test inputs, and verification compares them with the current files.
-
-The read-only pack audit and all 10 parsing/inventory tests also passed. Audit results describe current configuration and packaged predicates, not reachable biome frequency. The active pack may change independently of this repository; rerun the audit when evaluating a new test instance.
-
-The final development-directory rebuild produced the identical artifact hash above and passed all 49 static checks. The new addon is not installed in the active Prism instance.
+Restart Minecraft with only 0.2.1 installed. Use a fresh FTF comparison world
+because existing chunks retain the climate/biomes generated under 0.2.0.
+Run `/terralatitude status`, `/terralatitude sample`, and the same transect again.
+Expect `MATCH` and zero temperature/humidity deltas. Check nonzero negative
+altitude corrections on uplands, biome distribution, river/coast outcomes,
+Streams generation, caves, save/reopen persistence, and generation time.
+FTF's preview still uses native cached climate rather than this composition.

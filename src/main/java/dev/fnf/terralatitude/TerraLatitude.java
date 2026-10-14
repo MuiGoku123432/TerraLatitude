@@ -20,7 +20,7 @@ public final class TerraLatitude {
         NeoForge.EVENT_BUS.addListener(WorldProfiles::starting);
         NeoForge.EVENT_BUS.addListener(WorldProfiles::stopped);
         NeoForge.EVENT_BUS.addListener(ClimateCommands::register);
-        LOGGER.info("TerraLatitude integrated climate registered (experimental 0.2.0). Saved world profiles control generation.");
+        LOGGER.info("TerraLatitude integrated climate registered (experimental 0.2.1). Saved world profiles control generation.");
     }
     private void loading(ModConfigEvent.Loading event) {
         if (event.getConfig().getSpec() == IntegrationConfig.SPEC) IntegrationConfig.refresh();

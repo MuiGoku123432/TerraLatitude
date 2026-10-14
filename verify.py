@@ -127,7 +127,7 @@ def main() -> int:
         require(len(callbacks) == 1 and callbacks[0][0] == callback_desc, "Integrated callback has three coordinates and CallbackInfoReturnable")
         require(SAMPLER.replace(".", "/") in ann and "priority=2000" in ann and "remap=false" in ann, "Integrated mixin targets the named Minecraft sampler at priority 2000")
         body = callbacks[0][1] if callbacks else ""
-        require("sample" + SAMPLE_DESCRIPTOR in body and 'value="HEAD"' in body and "cancellable=true" in body and "require=1" in body and "allow=1" in body, "Integrated callback declares one cancellable HEAD injection on the exact sampler method")
+        require("sample" + SAMPLE_DESCRIPTOR in body and 'value="HEAD"' in body and "order=900" in body and "cancellable=true" in body and "require=1" in body and "allow=1" in body, "Integrated callback declares one cancellable HEAD injection in pass 900 on the exact sampler method")
         require("IntegratedClimate.evaluate:" in body and "CallbackInfoReturnable.setReturnValue:" in body, "Callback delegates to integrated composition before supplying its replacement")
         painter = inspect("com.naturaltemperature.mixin.WorldPainter")
         ann = mixin_annotation(painter)
@@ -135,9 +135,12 @@ def main() -> int:
             nt_config = json.loads(z.read("naturaltemperature.mixins.json"))
         priority = re.search(r"priority=(\d+)", ann)
         priority = int(priority.group(1)) if priority else nt_config.get("mixinPriority", 1000)
-        require(SAMPLER.replace(".", "/") in ann and priority < 2000, "Pinned NT sampler mixin declares lower priority (actual ordering still needs runtime testing)")
+        require(SAMPLER.replace(".", "/") in ann and priority == 1000, "Pinned NT sampler mixin retains its expected default mixin priority")
         callbacks = method_sections(painter).get("modifyTemperature", [])
         require(len(callbacks) == 1 and callbacks[0][0] == callback_desc and 'value="HEAD"' in callbacks[0][1] and "cancellable=true" in callbacks[0][1], "Pinned NT callback is the expected cancellable HEAD injection")
+        nt_order = re.search(r"\border=(\d+)", callbacks[0][1]) if callbacks else None
+        require((int(nt_order.group(1)) if nt_order else 1000) > 900,
+                "Integrated injector pass 900 precedes NT's cancellable callback pass; mixin priority alone is insufficient")
 
         module = inspect(RAW_MODULE)
         accessor = inspect("dev.fnf.terralatitude.mixin.ClimateModuleAccessor")

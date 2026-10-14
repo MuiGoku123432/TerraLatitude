@@ -18,7 +18,7 @@ import zipfile
 from dataclasses import dataclass
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "0.2.0-test"
+VERSION = "0.2.1-test"
 ARTIFACT = f"terralatitude-{VERSION}-1.21.1.jar"
 FTF_NAME = "freeterraforged-1.0.0-neoforge-1.21.1.jar"
 NT_NAME = "naturaltemperature-1.1.10-NEOFORGE-MC-1.21.1.jar"

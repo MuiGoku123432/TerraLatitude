@@ -1,0 +1,12 @@
+# Generated output and dependency reports contain machine-local paths.
+/build/
+/dist/
+/reports/
+/build.local.toml
+__pycache__/
+*.py[cod]
+.DS_Store
+.idea/
+*.iml
+.vscode/
+.gradle/

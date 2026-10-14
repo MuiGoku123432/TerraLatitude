@@ -1,0 +1,14 @@
+# Copy this file to build.local.toml and replace the example paths.
+# Python 3.11+ and an installed Java 21 JDK are required.
+# No dependencies are downloaded. Use an existing, prepared Prism instance.
+# CLI > TERRALATITUDE_* environment variables > build.local.toml > defaults.
+# Relative paths are resolved from this project directory. ~ is expanded.
+
+instance = "/path/to/PrismLauncher/instances/YourInstance"
+
+# Optional when Prism uses its platform-default data location.
+# Set this for portable installs, Flatpak, or a custom Prism data directory.
+# prism = "/path/to/PrismLauncher"
+
+# Optional: defaults to JAVA_HOME, macOS java_home -v 21, or javac on PATH.
+# java_home = "/path/to/java-21-jdk"

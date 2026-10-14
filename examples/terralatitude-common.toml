@@ -1,0 +1,7 @@
+# Example only. NeoForge creates the active file on first load of the addon.
+[altitude]
+enabled = true
+lapse_rate_c_per_km = 6.5
+effective_meters_per_block = 10.0
+degrees_per_climate_unit = 20.0
+preserve_randomized_underground = true

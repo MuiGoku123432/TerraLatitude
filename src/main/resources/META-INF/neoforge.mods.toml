@@ -4,10 +4,10 @@ license="MIT"
 
 [[mods]]
 modId="terralatitude"
-version="0.1.1-test"
+version="0.2.0-test"
 displayName="TerraLatitude"
 authors="F&F local compatibility project"
-description="Experimental elevation cooling for FreeTerraForged biome selection after Natural Temperature applies latitude bands. Preserves humidity and terrain generation."
+description="Experimental shared latitude, regional moisture, and elevation climate for FTF biome selection. Includes saved world profiles and diagnostics; preserves terrain geometry."
 
 [[mixins]]
 config="terralatitude.mixins.json"

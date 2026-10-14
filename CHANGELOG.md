@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.0-test — 2026-10-13
+
+- Compose raw FTF regional climate with world-snapshotted NT temperature/moisture,
+  then apply one native elevation curve before owned biome placement.
+- Add independent moisture strength and optional transition smoothing.
+- Persist world settings and preset identity; add ownership and strict parsing checks.
+- Add operator climate diagnostics and read-only pack restriction audit.
+- Reuse NT built-in modes0–10 with scoped configuration redirects; test parity
+  against original NT calculations without launching Minecraft.
+- Retire the old active altitude-return injection. Original prototype classes are
+  retained as inactive reference code; only the integrated hook is registered.
+- No active pack installation, biome enablement, or world testing performed.
+
 ## 0.1.1-test — 2026-10-13
 
 - Name the standalone project TerraLatitude; use `terralatitude` for its mod ID,

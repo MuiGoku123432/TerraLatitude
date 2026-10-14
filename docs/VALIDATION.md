@@ -1,37 +1,26 @@
-# Validation — TerraLatitude 0.1.1-test
+# Offline validation — TerraLatitude 0.2.0-test
 
-Validated 2026-10-13 after extraction into its standalone development directory.
+Status: compilation, ordinary tests, pinned-bytecode checks, NT adapter parity, and reproducibility passed. No Minecraft client, dedicated server, or world was launched.
 
-| Check | Result |
-| --- | --- |
-| Java 21 compilation against installed pinned APIs | PASS |
-| Pure altitude-model tests | PASS; 514,294 assertions, including parameter sweeps |
-| Package, metadata, dependency, source, and bytecode checks | PASS; 41/41 |
-| Standalone settings and repeated-build checks | PASS; 9/9 |
-| Two staged clean builds | Byte-identical |
-| Rebuild and verification from final project directory | PASS; identical artifact |
-| Minecraft / server / world launched | No |
-| Installed into active instance | No |
+Artifact: `dist/terralatitude-0.2.0-test-1.21.1.jar` — 54,183 bytes, 32 compiled addon classes.
+SHA-256: `c32c4871b9ee4e1eb211fc14a25dfcdde0f32449b512a3323456153972b65325`.
 
-Artifact: `dist/terralatitude-0.1.1-test-1.21.1.jar` (12,125 bytes).
+## Checks performed
 
-SHA-256:
+- Java 21 compilation against the pinned installed Minecraft 1.21.1, NeoForge 21.1.257, FTF 1.0.0007, and NT 1.1.10 dependencies.
+- All four ordinary test programs passed: altitude baseline, integrated climate math, world-profile serialization/validation/file handling, and raw climate coordinate math. Assertion counts include parameter sweeps and are not counts of distinct test cases.
+- 49 static package and bytecode checks passed. These cover the exact sampler descriptor and declared priority, six raw FTF accessor fields, the four active mixins, dependency hashes, metadata, source fingerprints, and downstream FTF selection calls.
+- The NT parity fixture passed across built-in modes 0–10. Its 24 compiled redirect handlers were exercised against 68 temperature and 84 humidity field reads in isolated transformed dependency fixtures. Nested scopes, exceptional cleanup, thread isolation, saved zone settings, and unsupported custom modes were checked.
+- Two clean Java/test builds produced identical JAR bytes.
 
-```
-edfdcd00fb424e5165361c4257b6286ed7b2f5763abe51ba2543daba294dcd50
-```
+## Runtime limits
 
-Local generated evidence is in ignored `reports/build.json`,
-`reports/verification.json`, and `reports/reproducibility.json`. The latter records
-staging-time settings/reproducibility checks; the first two were regenerated in
-the final development directory. No staging location is needed to build.
+These checks do **not** prove that the actual Mixin runtime applies these hooks, that injection ordering wins against every mod, or that the full pack starts. The parity harness explicitly uses isolated bytecode fixtures and does not bootstrap Mixin or Minecraft.
 
-The tests exercise the baseline altitude calculation. They do not validate the
-proposed unified climate pipeline in CLIMATE-DESIGN.md, which is not implemented.
+In-world testing still needs to assess biome distribution, river/coast outcomes, cave behavior, world-profile lifecycle and command access, actual generation cost, and visible transitions. FTF's existing preset preview reads native cached cell values; TerraLatitude diagnostics report the composed climate used by the addon.
 
-Static verification does not launch the Mixin runtime or establish full-pack
-startup, successful runtime injection, actual biome distribution, weather/snow,
-or world-generation performance. These remain user world-testing tasks.
+Machine-readable evidence is generated under `reports/`: `build.json`, `verification.json`, `nt-adapter-parity.json`, and `reproducibility.json`. The build report records all production and offline test inputs, and verification compares them with the current files.
 
-The original `fnf_altitude` addon must not be loaded alongside TerraLatitude.
-Metadata declares it incompatible to avoid applying altitude correction twice.
+The read-only pack audit and all 10 parsing/inventory tests also passed. Audit results describe current configuration and packaged predicates, not reachable biome frequency. The active pack may change independently of this repository; rerun the audit when evaluating a new test instance.
+
+The final development-directory rebuild produced the identical artifact hash above and passed all 49 static checks. The new addon is not installed in the active Prism instance.

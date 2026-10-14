@@ -1,134 +1,134 @@
-# One climate calculation for latitude and terrain
+# Shared climate implementation — 0.2.0-test
 
-Status: proposed next architecture, not implemented in 0.1.1-test.
+## Status against priorities 1–5
 
-## Why improve the prototype?
-
-The current mod adjusts the already combined temperature at the return of
-`WorldgenPlans$SamplerDecoration.sample`. That is a useful isolated baseline,
-but does not know how much original FTF elevation cooling survived NT's blend.
-Weighting the added cooling by NT influence reduces this issue without fully
-solving it. Lowering a final number cannot reconstruct discarded regional climate.
-
-The intended landscape is warm valleys, cooler uplands, and cold high mountains,
-with the elevation needed for colder biomes varying by latitude. Local wet and
-dry areas should remain possible within a latitude band. Terrain geometry stays
-with FTF; biome eligibility and replacements remain with the biome mods and pack.
-
-## Verified evidence from the installed binaries
-
-Reference versions: FTF 1.0.0007, NT 1.1.10, Minecraft 1.21.1.
-
-| Component | Verified behavior | Design consequence |
+| Priority | Implemented | Remaining limitation |
 | --- | --- | --- |
-| FTF `ClimateModule.apply` | Computes raw temperature, passes it to `modifyTemp(height, raw)`, then maps the result into [-1,1]. | A pre-elevation temperature exists conceptually inside FTF. |
-| FTF `ClimateModule.modifyTemp` | Raises clamped raw [0,1] temperature to `2^(normalizedElevation * altitudeCoolingStrength)`. | FTF already has elevation cooling; do not add a second full model. |
-| NT `WorldPainter.modifyTemperature` | Blends its result with the original FTF temperature using configured influence. | Partial influence retains FTF's earlier cooling. |
-| NT default tropical calculation | Also retains a 0.1 contribution of original temperature internally. | Even 100% NT influence is not necessarily independent of FTF temperature. |
-| NT `TemperatureModeRegistry` / `TemperatureMode` | Provides registry lookup and `calculate(TemperatureContext)`. | Explore reusing NT modes instead of duplicating their latitude mathematics. |
-| NT humidity calculation | Computes temperature again and supplies it to `HumidityContext`. | Temperature and humidity must be evaluated from coherent inputs. |
-| FTF `ClimateQuerySemantics` | Exposes generator context and preset through the owned sampler. | Preserve the existing owner/dimension checks. |
-| FTF moisture shaping | Has coastal and rain-shadow settings whose inspected math uses elevation. | This does not establish directional windward/leeward rainfall. |
+| 1. Shared climate | Paired temperature/moisture enter the owned FTF sampler and its provider/decorator path. | Native cached cell climate and FTF preview are unchanged; arbitrary feature consumers are not unified. |
+| 2. Moisture controls | Independent temperature and moisture strengths; moisture retains native terrain shaping. | This is climate blending, not a rainfall/wind simulation. |
+| 3. Rivers/coasts | Same output feeds the existing climate-filtered placement path. | Pack-disabled and globally replaced biomes remain unavailable; no new placements are injected. |
+| 4. World settings/diagnostics | Persisted NT+TerraLatitude profile, preset fingerprint, status/sample/CSV commands, pack audit. | No client preview synchronization; full pack rules and all external mod settings are not frozen. |
+| 5. Transitions | Optional deterministic five-tap smoothing of NT climate, with existing NT/FTF variation. | This does not guarantee an ecological transition biome exists in the installed palette. |
 
-Bytecode inspection locations: raw temperature in `ClimateModule.apply` around
-206–239 (modifyTemp call at 227); final NT blend around 119–140; retained tropical
-input in `TemperatureCalculator.calculateDefault` around 181–194; temperature
-passed into humidity context around 755–770. These offsets describe the pinned
-binaries only. They are investigation references, not injection contracts.
+No world or game was launched. Live integration order and actual generated results
+remain runtime validation work.
 
-## Preferred implementation
+## Sampling and ownership
 
-A small explicit integration API in the user's FTF fork is preferable to a broad
-mixin against its private climate internals. Such an API does not exist in this
-release and no FTF source change was made for this project extraction.
+`IntegratedSamplerMixin` injects at the head of `Climate.Sampler.sample`, priority
+2000, ahead of NT's default-priority cancellable injection. It cancels only for an
+enabled, saved, FTF-owned Overworld sample belonging to the active server. It does
+not call `sample` recursively and never temporarily changes NT global config.
+FTF's existing outer sampler wrappers and later `SamplerDecoration` stages remain.
 
-The provider should expose the pre-elevation regional climate plus ground height,
-sea level, seed, coordinates, preset identity, and dimension ownership at a stage
-where a composed result can still propagate consistently to downstream consumers.
-TerraLatitude can then act as an adapter to Natural Temperature's selected mode.
+Ownership requires the world seed, WORLDGEN_EPOCH owner type, the underlying biome
+and level-stem registry identities, and the actual Overworld generator identity.
+FTF wraps RegistryAccess in a new frozen container, so wrapper identity is not used.
+Underlying MappedRegistry instances and the selected generator retain identity.
+This also rejects stale samplers from a previous same-seed server session.
 
-Conceptual temperature pipeline (one normalized domain throughout):
+ServerAboutToStart captures defaults/NT settings or loads an existing profile.
+The first owned FTF sample binds the preset and completes the profile file before
+publishing it to generation threads. Profiles are immutable during a session;
+ServerStopped drops the server session. New disabled worlds bypass NT capture.
+
+## Raw FTF inputs without mutating shared cells
+
+`RawClimateAccess` uses FTF's cached-or-calculated terrain lookup once, then reads
+the original regional temperature/moisture noise graphs via six Mixin accessors
+on `ClimateModule`. It reproduces FTF's regional-edge and coordinate warping before
+sampling those graphs. This is direct raw noise evaluation, not algebraic reversal
+of clamped/quantized climate. It repeats climate-noise work but does not force a
+second terrain generation pass or load chunks.
+
+FTF's region/domain coordinates are geometric; installed bytecode computes them
+independently of climate temperature/moisture. The owned selection path computes
+the domain, obtains the climate point, and passes that point into provider and
+selection-decorator stages. Native cached Cell temperature/moisture remain intact.
+Preview and consumers reading those cells do not automatically see TerraLatitude.
+
+## Composition
+
+Let `n` be the saved NT influence (0..1), `t` and `h` the independent band strengths,
+and `rawT/rawH` FTF's pre-altitude regional noise. NT's native calculators evaluate
+both axes together using those inputs; their mode-specific regional contribution
+is retained. Temperature is evaluated once and supplied to the humidity context.
 
 ```
-regional = FTF temperature before altitude
-banded = NT selected mode, with regional supplied as its original-temperature input
-seaLevelClimate = lerp(regional, banded, NT influence)
-surfaceClimate = selectedElevationModel(seaLevelClimate, groundY, seaLevel)
+NTpair = evaluate saved NT mode(rawT, rawH, position)
+NTpair = optionally smooth its coordinate field over the configured radius
+seaT = lerp(rawT, NTpair.temperature, n * t)
+surfaceT = FTF elevation curve(seaT, predicted ground elevation, saved strength)
+moisture = lerp(native FTF moisture, NTpair.humidity, n * h)
 ```
 
-The blend uses NT's configured influence exactly once; any regional contribution
-inside the selected NT mode remains that mode's own behavior. Apply either FTF's
-existing elevation curve or TerraLatitude's lapse-inspired curve, not both.
-Mapping between FTF's [0,1] internal values, the [-1,1] climate axis, and quantized
-Minecraft values must be explicit and quantization should occur only at output.
+The FTF curve uses normalized inland elevation and its native above-ground gate.
+It is applied once. Terrain below that gate receives no additional height cooling.
+Humidity retains FTF's existing terrain shaping through its native input; no second
+rain-shadow/coastal correction is layered on. Existing upstream global FTF behavior
+is not replaced by an independent weather model.
 
-For disabled integration or zero NT influence, return the original FTF result
-exactly. Do not route zero influence through a different altitude model. Keep the
-current baseline mode available for comparison during development.
+Final changed axes are clamped and quantized once. Zero-strength axes preserve the
+original quantized value; zero NT influence preserves both native axes exactly.
+Continentalness, erosion, depth, and weirdness are unchanged by this addon.
+Explicit randomized NT caves retain native NT influence/randomization and bypass
+the surface blend/cooling/smoothing. Existing FTF cave policies still follow.
 
-NT's normal sampler injection must be bypassed only for the exact owned sample
-being supplied by the integrated provider. Never disable NT globally or modify
-its global configuration during generation. Whether the adapter needs a narrow,
-exception-safe per-thread scope or an explicit upstream hook requires a spike.
-Reusing the mode registry alone does not suppress the existing injection.
+## Natural Temperature adapter
 
-Prefer FTF's curve as the first integrated comparison, since that keeps preset
-altitude settings meaningful. Introduce the alternative lapse model only with
-separate validation of influence transitions and height scaling.
+`NtSettings` captures all fields read by the installed built-in modes and binds
+the owner's world seed. `NaturalClimateAdapter` constructs NT's public temperature
+and humidity contexts and invokes its dependency calculators. Modes 0–10 are
+supported; custom 101–105 cannot guarantee snapshot isolation and are rejected.
 
-## Humidity and regional consistency
+Some calculators read zone settings directly from static Config fields. Two
+mixins redirect exactly those field reads to an exception-safe, nesting-safe
+ThreadLocal snapshot. Outside the adapter scope, the real NT globals are used.
+No global value is assigned by production code. Marker interfaces let modes that
+need these redirects detect an omitted transform instead of silently reading globals.
 
-First retain current humidity behavior as a documented baseline while validating
-temperature. Then introduce an optional independent moisture blend using FTF's
-regional moisture and NT's latitude moisture. NT humidity must receive the same
-pre-elevation input/temperature convention as the paired temperature calculation;
-do not silently mix old-temperature humidity with newly composed temperature.
+The isolated parity harness compares against original installed WorldPainter
+context/coordinate calculations with supplied density inputs. Test-only transforms
+apply the actual compiled redirect handlers. This verifies numerical equivalence
+and snapshot isolation, not the actual Mixin runtime or modpack startup.
 
-The same chosen climate must reach both base biome selection and Lithostitched
-filters. Audit FTF derived region classifications, cached cells, and feature
-placement before moving the hook earlier. Changing a cell after a region label
-was derived could leave inconsistent consumers. Do not mutate shared cached cells
-in place or infer that temperature replacement alone updates all classifications.
+## Transitions, rivers, and coasts
 
-Continentalness, erosion, depth, and weirdness should retain FTF's existing values.
-Explicit NT randomized-underground behavior stays respected. Decide and test
-surface-versus-cave composition separately, using predicted ground elevation,
-not player height or arbitrary biome-query Y.
+The filter weights the center by one half and four cardinal samples by one eighth
+each. It smooths only NT's coordinate field, using the same local raw FTF inputs
+at each tap. Radius zero bypasses it. Constant/linear fields are preserved and the
+convex filter cannot overshoot its inputs. There is no extra random-noise layer.
+FTF's biome-edge controls and NT's waves retain their original roles.
 
-## What the spike must establish
+RU/Lithostitched climate predicates receive the resulting climate through FTF's
+existing owned selection path. Cold/muddy/tropical river and coast choices remain
+subject to all their other terrain, erosion, availability, and replacement rules.
+No extra cooling derives from underwater depth; no wetland rainfall is inferred
+merely from the presence of a river.
 
-1. Exact raw climate access and which stage precedes derived region classification.
-2. An owner-scoped bypass of NT's sampler hook with safe nesting and cleanup.
-3. Mode registry/context coverage of global modifiers, mode settings, offsets,
-   looping, humidity options, and cave randomization for the pinned NT version.
-4. Complete propagation of composed climate to base biomes and replacement filters.
-5. Thread safety, context lifetime, cache consistency, and no extra terrain pass.
-6. Continuous, deterministic behavior at influence, latitude, elevation, and cave
-   boundaries; exact native FTF behavior at zero influence.
+## Validation boundaries and next questions
 
-Do not reverse the final sample algebraically to recover raw FTF temperature:
-clamping, quantization, blending, and other decorators make that unreliable.
-Do not promise actual snowlines or biome names from a temperature threshold;
-selection is multidimensional and pack replacement rules still apply.
+- Test the actual Mixin application and full pack startup.
+- Confirm sea-level, upland, mountain, cave, river, and coastal selection across seeds.
+- Measure repeated regional-noise evaluation and five-mode-evaluation overhead.
+- Compare operator CSV output with generated biome IDs and later pack replacements.
+- Verify save/reopen persistence and intentionally invalid/mismatched profile handling.
+- Decide whether a future upstream FTF hook should also update preview/cell consumers.
+- Consider an optional biome profile only after explicitly deciding which exclusions
+  to remove. Current jungle, mangrove, tropical-river, and ocean replacements persist.
 
-## Separate later integrations
+Generation uses stable annual climate. Seasons must not move worldgen bands while
+chunks are created. Snow, crop, survival-temperature, and weather adapters are later
+work. True directional rain shadows need wind/upwind terrain modelling and a
+performance budget; the existing FTF setting name alone does not establish that.
 
-Per-world persisted climate settings and a configuration fingerprint would prevent
-accidental changes between generation sessions; the current common config is not
-world-scoped or automatically synchronized. Diagnostics should expose latitude,
-raw temperature, altitude contribution, humidity, final climate, and biome ID.
+## Evidence
 
-Seasonal snow, weather, player warmth, cloud forests, true wind-driven rain shadows,
-and physiological treelines need their own models/adapters and testing. Enabling
-previously excluded jungle biomes is a pack configuration decision, not a benefit
-that this mod can provide while those biomes remain excluded.
+Integration is pinned to the installed FTF/NT hashes recorded by build.py. Static
+checks inspect exact field/method descriptors, active mixins, target counts, callback
+shape, and declared priorities. Reference behavior was inspected from those binaries.
 
-## Sources and version scope
-
-- Installed reference binaries are pinned and their hashes appear in local build
-  reports. Bytecode is the evidence for this custom FTF build and NT 1.1.10.
-- [Natural Temperature's official description](https://modrinth.com/mod/natural-temperature)
-  describes configurable bands and modes; it may cover versions newer than the
-  installed one, so bytecode verification takes precedence for integration details.
-- [NeoForge 1.21.1 configuration documentation](https://docs.neoforged.net/docs/1.21.1/misc/config/)
-  describes common/server config behavior and mod-bus events.
+Public documentation provides context, not proof about the custom FTF build:
+[Natural Temperature](https://modrinth.com/mod/natural-temperature),
+[NeoForge 1.21.1 configuration](https://docs.neoforged.net/docs/1.21.1/misc/config/),
+[Lithostitched injectors](https://github.com/Apollounknowndev/lithostitched/wiki/Intro-To-Biome-Injectors).

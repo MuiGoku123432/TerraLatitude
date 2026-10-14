@@ -1,34 +1,56 @@
 #!/usr/bin/env python3
 """Static package/bytecode checks. Does not bootstrap Minecraft or apply Mixins."""
 from __future__ import annotations
-
-import json
 import argparse
+import json
+import os
 import re
 import struct
 import sys
 if sys.version_info < (3, 11):
-    raise SystemExit("Python 3.11 or newer is required (TOML metadata uses the standard-library tomllib module).")
+    raise SystemExit("Python 3.11+ is required.")
 import tomllib
 import zipfile
+from build import (ARTIFACT, FTF_NAME, FTF_TARGET, NT_NAME, ROOT, TARGET_DESCRIPTOR,
+                   VERSION, add_build_arguments, build_settings, dependencies,
+                   java_home, java_tool, run, sha256, source_fingerprints, test_main_classes)
 
-from build import (ARTIFACT, FTF_NAME, FTF_TARGET, NT_NAME, ROOT,
-                   TARGET_DESCRIPTOR, VERSION, add_build_arguments, build_settings,
-                   dependencies, java_home, java_tool, run, sha256)
+ACTIVE_MIXINS = {"IntegratedSamplerMixin", "ClimateModuleAccessor", "NtTemperatureSettingsMixin", "NtHumiditySettingsMixin"}
+SAMPLER = "net.minecraft.world.level.biome.Climate$Sampler"
+SAMPLE_DESCRIPTOR = "(III)Lnet/minecraft/world/level/biome/Climate$TargetPoint;"
+RAW_MODULE = "etcodehome.freeterraforged.world.worldgen.cell.climate.ClimateModule"
+NOISE_DESCRIPTOR = "Letcodehome/freeterraforged/world/worldgen/noise/module/Noise;"
+NT_METHODS = {"calculateCircular", "calculateCircular6", "calculateSquare6", "calculateBanded"}
+
+
+def method_sections(bytecode: str) -> dict[str, list[tuple[str, str]]]:
+    headers = list(re.finditer(r"\n  ([^\n]+\([^\n]*\));\n\s+descriptor: ([^\n]+)", bytecode))
+    result = {}
+    for index, header in enumerate(headers):
+        name = header.group(1).split("(", 1)[0].rsplit(" ", 1)[-1]
+        end = headers[index + 1].start() if index + 1 < len(headers) else len(bytecode)
+        result.setdefault(name, []).append((header.group(2), bytecode[header.end():end]))
+    return result
+
+
+def mixin_annotation(bytecode: str) -> str:
+    matches = re.findall(r"org\.spongepowered\.asm\.mixin\.Mixin\((.*?)\n\s*\)", bytecode, re.DOTALL)
+    return matches[-1] if matches else ""
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     add_build_arguments(parser)
     args = parser.parse_args()
-    checks = []
-    errors = []
-    report = {"status": "FAIL", "static_only": True, "checks": checks, "errors": errors,
+    checks, errors = [], []
+    reports = ROOT / "reports"
+    reports.mkdir(parents=True, exist_ok=True)
+    report = {"status": "FAIL", "version": VERSION, "static_only": True, "checks": checks, "errors": errors,
               "limits": ["No game, server, or world was launched.",
-                         "These checks do not prove that Mixin transforms successfully in the complete pack.",
-                         "Actual biome distribution, snow/weather, appearance, and performance require a new test world."]}
+                         "Compiled annotations and target bytecode are inspected; Mixins are not applied.",
+                         "Actual Mixin ordering, full-pack startup, biome generation, and performance need runtime testing."]}
 
-    def require(condition: bool, description: str) -> None:
+    def require(condition, description):
         checks.append({"check": description, "pass": bool(condition)})
         if not condition:
             errors.append(description)
@@ -38,93 +60,145 @@ def main() -> int:
         jdk = java_home(settings.java_home)
         deps, _ = dependencies(settings)
         artifact = ROOT / "dist" / ARTIFACT
-        build = json.loads((ROOT / "reports/build.json").read_text())
+        build = json.loads((reports / "build.json").read_text())
         report["artifact"] = {"path": str(artifact), "sha256": sha256(artifact)}
         report["dependencies"] = [{"path": str(p), "sha256": sha256(p)} for p in deps[:5]]
-        require(build["status"] == "PASS", "Java 21 compilation and isolated model test passed")
+        require(build["status"] == "PASS", "Java 21 compilation and ordinary offline tests passed")
         require(build["artifact"]["sha256"] == sha256(artifact), "Artifact matches the successful build report")
-        require(report["dependencies"] == build["classpath"][:5], "Installed target dependencies match those used by the build")
-        source_files = {p.relative_to(ROOT).as_posix(): sha256(p)
-                        for p in sorted((ROOT / "src").rglob("*")) if p.is_file()}
-        require(source_files == build["source_files"], "All current sources/resources match the tested build")
+        require(report["dependencies"] == build["classpath"][:5], "Installed target dependencies match the tested build")
+        require(source_fingerprints() == build["source_files"], "Production and offline test inputs match the tested build")
+        expected_tests = test_main_classes(sorted((ROOT / "src/test/java").rglob("*.java")))
+        require([t["class"] for t in build.get("tests", [])] == expected_tests, "Build ran every ordinary *Test main class")
+        report["tests"] = build.get("tests", [])
         with zipfile.ZipFile(artifact) as z:
             names = z.namelist()
-            require(len(names) == len(set(names)), "Archive has no duplicate entries")
             classes = [p for p in names if p.endswith(".class")]
-            require(all(p.startswith("dev/fnf/terralatitude/") for p in classes), "No Minecraft or third-party classes are bundled")
-            require("dev/fnf/terralatitude/TerraLatitude.class" in names, "Mod entrypoint class is packaged")
-            require("dev/fnf/terralatitude/AltitudeModel.class" in names, "Tested altitude model class is packaged")
-            require("dev/fnf/terralatitude/mixin/SamplerDecorationMixin.class" in names, "Sampler mixin class is packaged")
-            require(all(struct.unpack(">H", z.read(p)[6:8])[0] == 65 for p in classes), "All class files target Java 21")
-            require(not any(p.endswith("Test.class") for p in classes), "Test classes are not included in the mod")
-            require(not any("fnf_altitude" in p or "dev/fnf/altitude/" in p for p in names),
-                    "No prototype package or resource names remain in the archive")
+            require(len(names) == len(set(names)), "Archive has no duplicate entries")
+            require(classes and all(p.startswith("dev/fnf/terralatitude/") for p in classes), "No upstream classes are bundled")
+            required = {"TerraLatitude", "IntegratedClimate", "ClimateMath", "ClimateProfile", "WorldProfiles", "ClimateCommands", "RawClimateAccess", "NaturalClimateAdapter"}
+            require(all(f"dev/fnf/terralatitude/{n}.class" in names for n in required), "Integrated climate, world profiles, diagnostics, and adapters are packaged")
+            require(all(struct.unpack(">H", z.read(p)[6:8])[0] == 65 for p in classes), "All packaged classes target Java 21")
+            require(not any(p.endswith("Test.class") for p in classes), "Offline test classes are excluded")
+            require(not any("fnf_altitude" in p or "dev/fnf/altitude/" in p for p in names), "No retired prototype archive paths remain")
             manifest = z.read("META-INF/MANIFEST.MF").decode()
-            require("Implementation-Title: TerraLatitude\r\n" in manifest
-                    and f"Implementation-Version: {VERSION}\r\n" in manifest,
-                    "Manifest declares the TerraLatitude name and version")
+            require("Implementation-Title: TerraLatitude\r\n" in manifest and f"Implementation-Version: {VERSION}\r\n" in manifest, "Manifest declares the current name and version")
             metadata = tomllib.loads(z.read("META-INF/neoforge.mods.toml").decode())
-            require(metadata["modLoader"] == "javafml", "JavaFML loader metadata is declared")
+            require(metadata["modLoader"] == "javafml", "JavaFML metadata is declared")
             mod = next(m for m in metadata["mods"] if m["modId"] == "terralatitude")
-            require(mod["version"] == VERSION, "Mod ID and version match this test build")
-            require(len(metadata["mods"]) == 1 and mod["displayName"] == "TerraLatitude",
-                    "Archive declares only the TerraLatitude mod identity")
-            dependencies_meta = {d["modId"]: d for d in metadata["dependencies"]["terralatitude"]}
-            old_mod = dependencies_meta.get("fnf_altitude", {})
-            require(old_mod.get("type") == "incompatible" and old_mod.get("versionRange") == "[0,)"
-                    and old_mod.get("side") == "BOTH",
-                    "Prototype fnf_altitude is incompatible to prevent duplicate altitude cooling")
-            expected_ranges = {"minecraft": "[1.21.1]", "freeterraforged": "[1.0.0007]", "naturaltemperature": "[1.1.10]"}
-            for mod_id, range_value in expected_ranges.items():
-                dep = dependencies_meta.get(mod_id, {})
-                require(dep.get("type") == "required" and dep.get("versionRange") == range_value and dep.get("side") == "BOTH",
-                        f"Both sides require exact tested {mod_id} version {range_value}")
-            require(dependencies_meta.get("neoforge", {}).get("type") == "required", "NeoForge is a required dependency")
-            require(dependencies_meta.get("neoforge", {}).get("versionRange") == "[21.1.257,21.2)",
-                    "NeoForge version range matches the tested 1.21.1 baseline")
-            mixin_configs = [item["config"] for item in metadata["mixins"]]
-            require(len(mixin_configs) == 1, "Exactly one mixin configuration is registered")
-            require(mixin_configs == ["terralatitude.mixins.json"], "Renamed TerraLatitude mixin resource is registered")
-            config = json.loads(z.read(mixin_configs[0]))
-            require(config.get("required") is True, "Mixin configuration fails clearly if it cannot apply")
+            require(len(metadata["mods"]) == 1 and mod["displayName"] == "TerraLatitude" and mod["version"] == VERSION, "Exactly one TerraLatitude identity matches the build version")
+            depmeta = {d["modId"]: d for d in metadata["dependencies"]["terralatitude"]}
+            old = depmeta.get("fnf_altitude", {})
+            require(old.get("type") == "incompatible" and old.get("versionRange") == "[0,)" and old.get("side") == "BOTH", "Old altitude prototype is incompatible to prevent duplicate cooling")
+            for name, version in {"minecraft": "[1.21.1]", "freeterraforged": "[1.0.0007]", "naturaltemperature": "[1.1.10]"}.items():
+                dep = depmeta.get(name, {})
+                require(dep.get("type") == "required" and dep.get("versionRange") == version and dep.get("side") == "BOTH", f"Both sides require tested {name} {version}")
+            neo = depmeta.get("neoforge", {})
+            require(neo.get("type") == "required" and neo.get("versionRange") == "[21.1.257,21.2)", "NeoForge dependency matches the tested baseline")
+            require([m["config"] for m in metadata["mixins"]] == ["terralatitude.mixins.json"], "Exactly one TerraLatitude mixin configuration is registered")
+            config = json.loads(z.read("terralatitude.mixins.json"))
+            require(config.get("required") is True and config.get("injectors", {}).get("defaultRequire", 0) >= 1, "Missing required mixin targets fail clearly")
             require(config.get("compatibilityLevel") == "JAVA_21", "Mixin Java 21 compatibility is declared")
-            require(config.get("package") == "dev.fnf.terralatitude.mixin" and "SamplerDecorationMixin" in config.get("mixins", []),
-                    "Sampler mixin is enabled on both client and dedicated server")
-            require(config.get("injectors", {}).get("defaultRequire", 0) >= 1, "A missing required injection cannot silently succeed")
+            require(config.get("package") == "dev.fnf.terralatitude.mixin" and set(config.get("mixins", [])) == ACTIVE_MIXINS and len(config["mixins"]) == len(ACTIVE_MIXINS) and not config.get("client") and not config.get("server"), "Only the four integrated mixins are active on both sides; old return hook is inactive")
+            require(all(f"dev/fnf/terralatitude/mixin/{n}.class" in names for n in ACTIVE_MIXINS), "Every active mixin class is packaged")
+
         ftf = settings.instance / "minecraft/mods" / FTF_NAME
         nt = settings.instance / "minecraft/mods" / NT_NAME
-        for path, mod_id, expected in ((ftf, "freeterraforged", "1.0.0007"), (nt, "naturaltemperature", "1.1.10")):
+        for path, name, expected in ((ftf, "freeterraforged", "1.0.0007"), (nt, "naturaltemperature", "1.1.10")):
             with zipfile.ZipFile(path) as z:
                 metadata = tomllib.loads(z.read("META-INF/neoforge.mods.toml").decode())
-                actual = next(m["version"] for m in metadata["mods"] if m["modId"] == mod_id)
-                require(actual == expected, f"Installed {mod_id} declares tested version {expected}")
-        javap = java_tool(jdk, "javap")
-        target = run([javap, "-p", "-s", "-c", "-classpath", str(ftf), FTF_TARGET])
-        (ROOT / "reports/ftf-target-bytecode.txt").write_text(target + "\n")
-        sample = re.search(r"public net\.minecraft\.world\.level\.biome\.Climate\$TargetPoint sample\([^\n]+\);\n\s+descriptor: ([^\n]+)", target)
-        require(bool(sample) and sample.group(1) == TARGET_DESCRIPTOR, "Installed FTF target has the exact sample method descriptor")
-        sample_body = re.split(r"\n  (?:public|private|protected) ", target[sample.end():], maxsplit=1)[0] if sample else ""
-        require(len(re.findall(r"\b\d+: areturn\b", sample_body)) == 1, "Target sample method has exactly one RETURN injection site")
-        mixin = run([javap, "-p", "-s", "-v", "-classpath", str(artifact), "dev.fnf.terralatitude.mixin.SamplerDecorationMixin"])
-        (ROOT / "reports/mixin-bytecode.txt").write_text(mixin + "\n")
-        require(FTF_TARGET in mixin or FTF_TARGET.replace(".", "/") in mixin, "Compiled Mixin targets FTF SamplerDecoration")
-        require("sample" + TARGET_DESCRIPTOR in mixin, "Compiled injector selects the exact sample descriptor")
-        require('value="RETURN"' in mixin and "cancellable=true" in mixin, "Compiled injection is a cancellable RETURN hook")
-        require("require=1" in mixin and "allow=1" in mixin, "Compiled injector requires exactly one matching injection")
-        require("remap=false" in mixin, "Custom FTF target is excluded from Minecraft name remapping")
-        callback = "(Lnet/minecraft/world/level/biome/Climate$Sampler;IIILorg/spongepowered/asm/mixin/injection/callback/CallbackInfoReturnable;)V"
-        require(callback in mixin, "Injection callback matches the sampler and all three coordinate arguments")
-        entrypoint = run([javap, "-p", "-v", "-classpath", str(artifact), "dev.fnf.terralatitude.TerraLatitude"])
-        require("net.neoforged.fml.common.Mod" in entrypoint and 'value="terralatitude"' in entrypoint, "Compiled mod entrypoint carries its @Mod annotation")
-        require("terralatitude-common.toml" in entrypoint and "fnf-altitude-common.toml" not in entrypoint,
-                "Compiled entrypoint registers the renamed TerraLatitude common config")
-        require("fnf_altitude" not in entrypoint, "Compiled entrypoint has no retired prototype mod identity")
+                require(next(m["version"] for m in metadata["mods"] if m["modId"] == name) == expected, f"Pinned installed {name} declares {expected}")
+        classpath = os.pathsep.join(map(str, (artifact, *deps)))
+        evidence_cache = {}
+
+        def inspect(class_name):
+            if class_name not in evidence_cache:
+                text = run([java_tool(jdk, "javap"), "-p", "-s", "-c", "-v", "-classpath", classpath, class_name])
+                evidence_cache[class_name] = text
+                name = class_name.rsplit(".", 1)[-1].replace("$", "-") + "-bytecode.txt"
+                (reports / name).write_text(text + "\n")
+            return evidence_cache[class_name]
+
+        sampler = method_sections(inspect(SAMPLER))
+        require(any(d == SAMPLE_DESCRIPTOR for d, _ in sampler.get("sample", [])), "Minecraft sampler exposes the exact three-coordinate target method")
+        integrated = inspect("dev.fnf.terralatitude.mixin.IntegratedSamplerMixin")
+        ann = mixin_annotation(integrated)
+        callback_desc = "(IIILorg/spongepowered/asm/mixin/injection/callback/CallbackInfoReturnable;)V"
+        callbacks = method_sections(integrated).get("terraLatitude$sample", [])
+        require(len(callbacks) == 1 and callbacks[0][0] == callback_desc, "Integrated callback has three coordinates and CallbackInfoReturnable")
+        require(SAMPLER.replace(".", "/") in ann and "priority=2000" in ann and "remap=false" in ann, "Integrated mixin targets the named Minecraft sampler at priority 2000")
+        body = callbacks[0][1] if callbacks else ""
+        require("sample" + SAMPLE_DESCRIPTOR in body and 'value="HEAD"' in body and "cancellable=true" in body and "require=1" in body and "allow=1" in body, "Integrated callback declares one cancellable HEAD injection on the exact sampler method")
+        require("IntegratedClimate.evaluate:" in body and "CallbackInfoReturnable.setReturnValue:" in body, "Callback delegates to integrated composition before supplying its replacement")
+        painter = inspect("com.naturaltemperature.mixin.WorldPainter")
+        ann = mixin_annotation(painter)
+        with zipfile.ZipFile(nt) as z:
+            nt_config = json.loads(z.read("naturaltemperature.mixins.json"))
+        priority = re.search(r"priority=(\d+)", ann)
+        priority = int(priority.group(1)) if priority else nt_config.get("mixinPriority", 1000)
+        require(SAMPLER.replace(".", "/") in ann and priority < 2000, "Pinned NT sampler mixin declares lower priority (actual ordering still needs runtime testing)")
+        callbacks = method_sections(painter).get("modifyTemperature", [])
+        require(len(callbacks) == 1 and callbacks[0][0] == callback_desc and 'value="HEAD"' in callbacks[0][1] and "cancellable=true" in callbacks[0][1], "Pinned NT callback is the expected cancellable HEAD injection")
+
+        module = inspect(RAW_MODULE)
+        accessor = inspect("dev.fnf.terralatitude.mixin.ClimateModuleAccessor")
+        ann = mixin_annotation(accessor)
+        require(RAW_MODULE.replace(".", "/") in ann and "remap=false" in ann, "Raw accessor targets the custom FTF ClimateModule")
+        methods = method_sections(accessor)
+        fields = {"temperature": (NOISE_DESCRIPTOR, "temperature"), "moisture": (NOISE_DESCRIPTOR, "moisture"), "warpX": (NOISE_DESCRIPTOR, "warpX"), "warpZ": (NOISE_DESCRIPTOR, "warpZ"), "warpStrength": ("F", "warpStrength"), "biomeFreq": ("F", "biomeFrequency")}
+        accessors = {}
+        for field, (desc, suffix) in fields.items():
+            decl = re.search(r"\n  private [^\n]+ " + re.escape(field) + r";\n\s+descriptor: ([^\n]+)", module)
+            getter = methods.get("terralatitude$" + suffix, [])
+            valid = bool(decl) and decl.group(1) == desc and len(getter) == 1
+            valid = valid and getter[0][0] == "()" + desc and f'value="{field}"' in getter[0][1]
+            accessors[field] = {"descriptor": desc, "matches": bool(valid)}
+        report["raw_accessor_fields"] = accessors
+        require(all(v["matches"] for v in accessors.values()), "All six raw-noise accessor fields and descriptors match installed FTF")
+        methods = method_sections(module)
+        desc = "(Letcodehome/freeterraforged/world/worldgen/cell/Cell;FFFFZ)V"
+        body = next((b for d, b in methods.get("apply", []) if d == desc), "")
+        require(body and 0 <= body.find("Field temperature:") < body.find("Method modifyTemp:(FF)F") and "Field moisture:" in body and "Method modifyMoisture:(FF)F" in body and "Cell.temperature:F" in body and "Cell.moisture:F" in body, "FTF computes raw regional noises before terrain shaping and final cell climate")
+        decoration = method_sections(inspect(FTF_TARGET)).get("sample", [])
+        require(len(decoration) == 1 and decoration[0][0] == TARGET_DESCRIPTOR and "Climate$Sampler.sample:" in decoration[0][1], "FTF sampler decoration invokes the Minecraft sampler containing the integration")
+        selection = method_sections(inspect("etcodehome.freeterraforged.world.worldgen.runtime.WorldgenBiomeSelection$Executable"))
+        resolve, select = selection.get("resolveOwned", []), selection.get("select", [])
+        require(len(resolve) == 1 and "SamplerDecoration.sample:" in resolve[0][1] and len(select) == 1 and "ProviderSelection.resolveRequired:" in select[0][1] and "SelectionDecoration.apply:" in select[0][1], "FTF samples climate before provider and replacement selection")
+
+        redirects = {}
+        for axis in ("Temperature", "Humidity"):
+            calculator = "com.naturaltemperature." + axis + "Calculator"
+            targets = method_sections(inspect(calculator))
+            mixin = inspect("dev.fnf.terralatitude.mixin.Nt" + axis + "SettingsMixin")
+            methods, ann = method_sections(mixin), mixin_annotation(mixin)
+            require(calculator.replace(".", "/") in ann and "remap=false" in ann and "implements dev.fnf.terralatitude.NtSettingsRedirected" in mixin, f"{axis} redirects target the correct calculator with their runtime marker")
+            desc = f"(Lcom/naturaltemperature/{axis}Context;)D"
+            require(all(len(targets.get(n, [])) == 1 and targets[n][0][0] == desc for n in NT_METHODS), f"All four redirected {axis.lower()} mode methods have expected context descriptors")
+            fields = {f"{axis.lower()}_zone_{i}" for i in range(1, 7)} | {f"percentage_coverage_zone_{i}" for i in range(1, 7)}
+            field_evidence = {}
+            for field in sorted(fields):
+                handler = methods.get("terralatitude$" + field, [])
+                body = handler[0][1] if len(handler) == 1 else ""
+                selected = re.search(r"method=\[([^\]]+)\]", body)
+                selected = set(re.findall(r'"([^\"]+)"', selected.group(1))) if selected else set()
+                counts = {n: len(re.findall(r"\bgetstatic\s+[^\n]+// Field com/naturaltemperature/Config\." + re.escape(field) + r":D\b", targets.get(n, [("", "")])[0][1])) for n in sorted(NT_METHODS)}
+                valid = (len(handler) == 1 and handler[0][0] == "()D" and selected == NT_METHODS
+                         and f'target="Lcom/naturaltemperature/Config;{field}:D"' in body
+                         and 'value="FIELD"' in body and "opcode=178" in body and "require=1" in body
+                         and "remap=false" in body and "NtSnapshotScope.number:" in body and sum(counts.values()) > 0)
+                field_evidence[field] = {"read_counts": counts, "matches": valid}
+            redirects[calculator] = field_evidence
+            require(all(v["matches"] for v in field_evidence.values()), f"All 12 {axis.lower()} snapshot redirects match actual GETSTATIC reads and callback descriptors")
+            require(len([n for n in methods if n.startswith("terralatitude$")]) == 12, f"{axis} mixin contains exactly the 12 audited redirect handlers")
+        report["nt_redirect_targets"] = redirects
+        entrypoint = inspect("dev.fnf.terralatitude.TerraLatitude")
+        require("net.neoforged.fml.common.Mod" in entrypoint and 'value="terralatitude"' in entrypoint, "Entrypoint carries the TerraLatitude @Mod annotation")
+        require("terralatitude-common.toml" in entrypoint and "fnf-altitude-common.toml" not in entrypoint, "Entrypoint registers the TerraLatitude common configuration")
+        require("WorldProfiles" in entrypoint and "ClimateCommands" in entrypoint, "Entrypoint registers world lifecycle and diagnostic handlers")
         report["model_test_output"] = build.get("model_test_output", "")
     except Exception as exc:
         errors.append(f"Verification could not complete: {exc}")
     report["status"] = "PASS" if not errors else "FAIL"
-    (ROOT / "reports").mkdir(parents=True, exist_ok=True)
-    (ROOT / "reports/verification.json").write_text(json.dumps(report, indent=2) + "\n")
+    (reports / "verification.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"Static verification {report['status']}: {sum(c['pass'] for c in checks)}/{len(checks)} checks passed")
     for error in errors:
         print(error, file=sys.stderr)

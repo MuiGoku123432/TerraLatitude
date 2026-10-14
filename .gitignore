@@ -10,3 +10,6 @@ __pycache__/
 *.iml
 .vscode/
 .gradle/
+
+# Standalone dependency test logging
+/logs/

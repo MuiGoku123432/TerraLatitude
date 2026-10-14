@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -17,7 +18,7 @@ import zipfile
 from dataclasses import dataclass
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "0.1.1-test"
+VERSION = "0.2.0-test"
 ARTIFACT = f"terralatitude-{VERSION}-1.21.1.jar"
 FTF_NAME = "freeterraforged-1.0.0-neoforge-1.21.1.jar"
 NT_NAME = "naturaltemperature-1.1.10-NEOFORGE-MC-1.21.1.jar"
@@ -165,6 +166,30 @@ def deterministic_jar(path: Path, files: dict[str, bytes]) -> None:
     temporary.replace(path)
 
 
+def source_fingerprints() -> dict[str, str]:
+    """Record production resources and all offline test inputs, excluding outputs."""
+    paths = [p for directory in ("src", "tests", "tools")
+             for p in (ROOT / directory).rglob("*")
+             if p.is_file() and "__pycache__" not in p.parts]
+    paths.extend((ROOT / "build.py", ROOT / "verify.py"))
+    return {p.relative_to(ROOT).as_posix(): sha256(p) for p in sorted(paths)}
+
+
+def test_main_classes(tests: list[Path]) -> list[str]:
+    classes = []
+    for path in tests:
+        if not path.name.endswith("Test.java"):
+            continue
+        source = path.read_text(encoding="utf-8")
+        if not re.search(r"public\s+static\s+void\s+main\s*\(\s*String(?:\s*\[\s*\]|\s*\.\.\.)", source):
+            raise RuntimeError(f"Ordinary test must expose public static void main(String[] args): {path}")
+        package = re.search(r"^\s*package\s+([\w.]+)\s*;", source, re.MULTILINE)
+        classes.append((package.group(1) + "." if package else "") + path.stem)
+    if not classes:
+        raise RuntimeError("No ordinary *Test.java main classes were discovered.")
+    return classes
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     add_build_arguments(parser)
@@ -187,8 +212,7 @@ def main() -> int:
         tests = sorted((ROOT / "src/test/java").rglob("*.java"))
         if not sources or not tests:
             raise RuntimeError("Main Java sources and the plain Java model test are both required.")
-        source_fingerprints = {p.relative_to(ROOT).as_posix(): sha256(p)
-                               for p in sorted((ROOT / "src").rglob("*")) if p.is_file()}
+        fingerprints_before = source_fingerprints()
         build = ROOT / "build"
         for folder in (build / "classes", build / "test-classes"):
             if folder.exists():
@@ -198,11 +222,13 @@ def main() -> int:
         options = ["--release", "21", "-proc:none", "-encoding", "UTF-8", "-g:none"]
         report["compile_output"] = run([javac, *options, "-classpath", classpath,
                                        "-d", str(build / "classes"), *map(str, sources)])
-        report["test_compile_output"] = run([javac, *options, "-classpath", str(build / "classes"),
+        test_classpath = os.pathsep.join(map(str, (build / "classes", build / "test-classes", *paths)))
+        report["test_compile_output"] = run([javac, *options, "-classpath", test_classpath,
                                             "-d", str(build / "test-classes"), *map(str, tests)])
-        test_classpath = os.pathsep.join(map(str, (build / "classes", build / "test-classes")))
-        report["model_test_output"] = run([java_tool(jdk, "java"), "-ea", "-classpath", test_classpath,
-                                          "dev.fnf.terralatitude.AltitudeModelTest"])
+        report["tests"] = [{"class": test_class,
+                            "output": run([java_tool(jdk, "java"), "-ea", "-classpath", test_classpath, test_class])}
+                           for test_class in test_main_classes(tests)]
+        report["model_test_output"] = "\n".join(test["output"] for test in report["tests"])
         files = {str(p.relative_to(build / "classes")).replace(os.sep, "/"): p.read_bytes()
                  for p in sorted((build / "classes").rglob("*.class"))}
         for path in sorted(resource_root.rglob("*")):
@@ -211,12 +237,12 @@ def main() -> int:
                 if name in files:
                     raise RuntimeError(f"Resource collides with compiled class: {name}")
                 files[name] = path.read_bytes()
-        files.setdefault("META-INF/MANIFEST.MF", b"Manifest-Version: 1.0\r\nImplementation-Title: TerraLatitude\r\nImplementation-Version: 0.1.1-test\r\n\r\n")
+        files.setdefault("META-INF/MANIFEST.MF", ("Manifest-Version: 1.0\r\nImplementation-Title: TerraLatitude\r\n"
+                         f"Implementation-Version: {VERSION}\r\n\r\n").encode("utf-8"))
         artifact = ROOT / "dist" / ARTIFACT
         deterministic_jar(artifact, files)
-        report["source_files"] = {p.relative_to(ROOT).as_posix(): sha256(p)
-                                  for p in sorted((ROOT / "src").rglob("*")) if p.is_file()}
-        if source_fingerprints != report["source_files"]:
+        report["source_files"] = source_fingerprints()
+        if fingerprints_before != report["source_files"]:
             raise RuntimeError("Sources/resources changed while compiling. Rebuild after edits finish.")
         report["artifact"] = {"path": str(artifact), "sha256": sha256(artifact), "bytes": artifact.stat().st_size,
                               "classes": len([p for p in files if p.endswith(".class")]), "entries": len(files)}

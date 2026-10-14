@@ -1,7 +1,7 @@
-# Example only. NeoForge creates the active file on first load of the addon.
-[altitude]
+# Defaults for worlds without a TerraLatitude saved climate profile.
+# Existing worlds read <world>/terralatitude-climate.json instead.
+[climate]
 enabled = true
-lapse_rate_c_per_km = 6.5
-effective_meters_per_block = 10.0
-degrees_per_climate_unit = 20.0
-preserve_randomized_underground = true
+temperature_band_strength = 1.0
+moisture_band_strength = 0.5
+transition_radius_blocks = 128

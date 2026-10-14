@@ -6,12 +6,13 @@
 - The owner performs in-world testing. Do not launch Minecraft, a dedicated
   server, or a world unless explicitly requested. Compile, static inspection,
   pure-model tests, and package validation are appropriate.
-- Build with `python3 build.py`; verify with `python3 verify.py`. Local dependency
+- Build with `python3 build.py`; verify with `python3 verify.py`. Also run
+  `python3 tools/test_nt_adapter.py` and the Python pack-audit tests. Local dependency
   paths belong in ignored build.local.toml; never bundle upstream mod/game JARs.
 - Keep current baseline behavior distinct from proposed integrated climate mode.
-  A future single-pass climate model must avoid double altitude correction and
+  The integrated climate model must avoid double altitude correction and
   duplicate Natural Temperature application.
-- Preserve generator/dimension ownership checks, original non-temperature climate
+- Preserve generator/dimension ownership checks, untouched continentalness/erosion/depth/weirdness climate
   coordinates, zero-influence pass-through, cave-threshold semantics, deterministic
   output, and generation-thread safety unless deliberately changing a documented
   contract with appropriate tests.

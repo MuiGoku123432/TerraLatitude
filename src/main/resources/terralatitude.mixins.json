@@ -3,6 +3,13 @@
   "minVersion": "0.8",
   "package": "dev.fnf.terralatitude.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": ["SamplerDecorationMixin"],
-  "injectors": {"defaultRequire": 1}
+  "mixins": [
+    "IntegratedSamplerMixin",
+    "ClimateModuleAccessor",
+    "NtTemperatureSettingsMixin",
+    "NtHumiditySettingsMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
 }

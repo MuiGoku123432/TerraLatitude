@@ -1,0 +1,159 @@
+{
+  "date": "2026-10-14",
+  "status": "offline_verified_not_installed",
+  "source_provenance": {
+    "ftf_commit": "583a375def5132fba43930367185a2b35fef901b",
+    "ftf_sha256": "0ab7d71948cc9b43037e0f02611fb3be782c84379e034ab7e487fd98a1fc5529",
+    "comparison": "javap -p -c -s: normalize debug source label, whitespace, constant-pool indices, equivalent ldc/ldc_w encodings and branch offsets to instruction indices; preserve instruction operations, constants, symbolic targets and local-variable slots.",
+    "classes": {
+      "Climate": true,
+      "ClimateModule": true
+    }
+  },
+  "ftf_patch": {
+    "scope": "Pinned binary plus three recompiled native climate source units and test version metadata",
+    "version": "1.0.0007-climate-api.1",
+    "baseline_sha256": "0ab7d71948cc9b43037e0f02611fb3be782c84379e034ab7e487fd98a1fc5529",
+    "artifact": {
+      "file": "freeterraforged-1.0.0007-climate-api.1-neoforge-1.21.1.jar",
+      "sha256": "5c43eeb2426d191fe7f8a5a992159dece09a4827fd4793e45b2742aaac769a33",
+      "bytes": 2439677
+    },
+    "changed_or_added_entries": [
+      "META-INF/neoforge.mods.toml",
+      "etcodehome/freeterraforged/world/worldgen/cell/climate/Climate.class",
+      "etcodehome/freeterraforged/world/worldgen/cell/climate/ClimateModule$RawSample.class",
+      "etcodehome/freeterraforged/world/worldgen/cell/climate/ClimateModule.class",
+      "etcodehome/freeterraforged/world/worldgen/cell/climate/TemperatureShaping.class"
+    ],
+    "unchanged_entry_count": 1028,
+    "source_hashes": {
+      "common/src/main/java/etcodehome/freeterraforged/world/worldgen/cell/climate/Climate.java": "01b4c552bd40b650dddf723cf045dda95cd1388d52f27fa1ba2c673532b1c62e",
+      "common/src/main/java/etcodehome/freeterraforged/world/worldgen/cell/climate/ClimateModule.java": "fdbe09325536a0d613406a5a20168fb748b0557a86099e341d5a2152ee8c14cc",
+      "common/src/main/java/etcodehome/freeterraforged/world/worldgen/cell/climate/TemperatureShaping.java": "6b4ec3a3887435e7e829c26735b386213bb645c67a95c16209fac9bb4c61b893"
+    },
+    "limits": [
+      "No game/server launch or installation.",
+      "This is a compatibility patch artifact; the complete Gradle source build is a separate check."
+    ]
+  },
+  "ftf_regression": {
+    "passed": true,
+    "baseline_sha256": "0ab7d71948cc9b43037e0f02611fb3be782c84379e034ab7e487fd98a1fc5529",
+    "api_sha256": "5c43eeb2426d191fe7f8a5a992159dece09a4827fd4793e45b2742aaac769a33",
+    "fixture_sources": {
+      "tools/climate-api-tests/ClimateApiFixture.java": "28addbbf28f2568ae26815db814091ae1945f249f5a5109bdd9a0e4f73187dd8",
+      "tools/climate-api-tests/ClimateApiParityTest.java": "135d493ecb3aa7eb10753f897dc86b711e8ce41db513e8b454b870eae649dbf7"
+    },
+    "limits": [
+      "Synthetic supplied noise/terrain/setting inputs; no native noise-graph construction or terrain generation.",
+      "Only constructors, class names and three global setting reads are substituted in the test fixtures.",
+      "No game bootstrap, Mixin startup, server/world launch or performance validation."
+    ],
+    "compile": "Note: <FTF_TEST_WORKSPACE>/tools/climate-api-tests/ClimateApiFixture.java uses or overrides a deprecated API.\nNote: Recompile with -Xlint:deprecation for details.",
+    "fixture": "Fixture preserves original/new climate methods; only empty module construction, class names and three global setting reads are substituted.",
+    "tests": "PASS: 27000 native compiled-FTF cases, 27000 raw API cases, 3105000 assertions; exact float altitude, all public cell fields, native apply/region paths and nonmutating raw sampling."
+  },
+  "terralatitude_artifact": {
+    "path": "<TERRALATITUDE_TEST_WORKSPACE>/dist/terralatitude-0.3.0-test-1.21.1.jar",
+    "sha256": "a464d15e93f7986a7c9d073a7d150916d6d9b5f3855b127690455dbee2b961f2",
+    "bytes": 58799,
+    "classes": 35,
+    "entries": 40
+  },
+  "composition": {
+    "passed": true,
+    "scope": "compiled legacy composition with supplied native/raw inputs",
+    "limitations": [
+      "No live ownership binding, Mixin startup, terrain acquisition or world generation.",
+      "Timing covers composition only, not complete FTF sampling or chunk generation.",
+      "Synthetic corpus is not a replay of rounded server CSV inputs."
+    ],
+    "baseline_sha256": "a8caea0ab0e4f656331934d5fdcdd5c6b18f8da4e41dba106130f603fdd71cd8",
+    "addon_sha256": "a464d15e93f7986a7c9d073a7d150916d6d9b5f3855b127690455dbee2b961f2",
+    "unchanged_contract_classes": {
+      "WorldProfiles": true,
+      "NaturalClimateAdapter": true,
+      "ClimateProfile": true,
+      "mixin/NtTemperatureSettingsMixin": true,
+      "mixin/NtHumiditySettingsMixin": true
+    },
+    "dependencies": [
+      {
+        "path": "<PRISM_DATA>/libraries/net/minecraft/client/1.21.1-20240808.144430/client-1.21.1-20240808.144430-srg.jar",
+        "sha256": "a649bd3ce77f122d0f83ae1b37b4b303e662470f928b9bee5fbc76580805ffd4"
+      },
+      {
+        "path": "<PRISM_DATA>/libraries/net/neoforged/neoforge/21.1.257/neoforge-21.1.257-universal.jar",
+        "sha256": "6e74fb9e651780c93224908aa85974c89c4012ae2726e7780bdb42928425fd93"
+      },
+      {
+        "path": "<PRISM_DATA>/libraries/net/neoforged/fancymodloader/loader/4.0.45/loader-4.0.45.jar",
+        "sha256": "8390398e67df23e72d85ed809685be2752c8ec545b7cbb6ad4b70fdc81e4dcd4"
+      },
+      {
+        "path": "<FTF_TEST_WORKSPACE>/build/climate-api-patch/freeterraforged-1.0.0007-climate-api.1-neoforge-1.21.1.jar",
+        "sha256": "5c43eeb2426d191fe7f8a5a992159dece09a4827fd4793e45b2742aaac769a33"
+      },
+      {
+        "path": "<PRISM_DATA>/instances/F&F Server - Terra/minecraft/mods/naturaltemperature-1.1.10-NEOFORGE-MC-1.21.1.jar",
+        "sha256": "6ee8a45d1fce319c5f6654c08c73663254b7fee7c970710249537329b0fb1d2a"
+      }
+    ],
+    "fixture_sources": {
+      "tests/java/nt-adapter/NaturalClimateAdapterTest.java": "c48d86cb40f76f7934049229376b718d8772765a611503ee3bb8fdd13d3976f8",
+      "tests/java/nt-adapter/NtFixtureTransformer.java": "d5060ead18b8ca3bf7a6fd3f92c147dcd4094b6d2ed8d7336c6c9ea18b03cb26",
+      "tests/java/composition/CompositionCompatibilityTest.java": "bef849d8b462f87bae2f7bb7ca3ef6b02c9ffafeb2811af69095d3036197cd63",
+      "tests/java/composition/FtfCellFixture.java": "6cce15b3aa642552537abc3a69a6366b315629747ea6b57ba975721f364cbc06",
+      "tests/java/composition/FtfCellInputTest.java": "b56a6065faf53a12e752dda0653f3672da48b8d42e64b53054d46e46eac0ad67",
+      "tests/java/composition/LegacyCompositionFixture.java": "a49abc90260a24bb1c3facfc803dd0d6d81a477d8a512f0382268bc628c19e0e"
+    },
+    "compile": "Note: <TERRALATITUDE_TEST_WORKSPACE>/tests/java/composition/LegacyCompositionFixture.java uses or overrides a deprecated API.\nNote: Recompile with -Xlint:deprecation for details.",
+    "nt_fixture": "Temperature calculator: 12 compiled redirect handlers applied to 68 test-fixture field reads\nHumidity calculator: 12 compiled redirect handlers applied to 84 test-fixture field reads",
+    "legacy_fixture": "Legacy fixture: compiled 0.2.1 composition and independent original ClimateMath retained; world ownership, native density and raw terrain acquisition supplied by test inputs.",
+    "cell_fixture": "FTF cell fixture: public native API; test-only empty noise-module constructor. Native Levels/Cell code unchanged.",
+    "cell_tests": "PASS: 252 populated-cell cases; 2035 assertions; native FTF Levels, heights/gates, raw noise, edge/warp inputs, and immutable cell snapshots.",
+    "tests": "WARN StatusConsoleListener Advanced terminal features are not available in this environment\nPASS: 12672 compiled-0.2.1 comparisons; 136580 assertions; exact T/H and intermediates, six target axes, bypasses, cave threshold, saved schema, and concurrent profiles.\nCOMPOSITION_BENCHMARK [45781167, 47128834, 47544167, 47728000, 45687750, 48458875, 47513167] [47017292, 45216167, 52225792, 45053458, 46652625, 46776625, 45123709]",
+    "composition_benchmark": {
+      "legacy_ns": [
+        45781167,
+        47128834,
+        47544167,
+        47728000,
+        45687750,
+        48458875,
+        47513167
+      ],
+      "current_ns": [
+        47017292,
+        45216167,
+        52225792,
+        45053458,
+        46652625,
+        46776625,
+        45123709
+      ],
+      "median_change_percent": -1.8111653133961791,
+      "max_relative_range_percent": 15.373913043478261,
+      "assessment": "inconclusive: variability exceeds 5%",
+      "not_a_full_sampler_benchmark": true
+    }
+  },
+  "static_checks": 58,
+  "nt_assertions": 191274,
+  "sampler_order_assertions": 41,
+  "pack_audit_unit_tests": 10,
+  "full_ftf_gradle_build": {
+    "task": ":neoforge:remapJar",
+    "offline": true,
+    "java": 21,
+    "result": "BUILD SUCCESSFUL"
+  },
+  "limitations": [
+    "No Minecraft, server, world or Mixin startup.",
+    "Supplied-input comparisons do not prove live owner binding or full-pack compatibility.",
+    "Composition timing remains inconclusive; full sampler and chunk generation unmeasured.",
+    "Preview/cell consumers still use native climate; complex climate/hydrology work deferred."
+  ],
+  "publication_note": "Machine-specific paths replaced with portable placeholders. Artifact hashes, fixture source hashes and test results are unchanged."
+}

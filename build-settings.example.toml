@@ -12,3 +12,7 @@ instance = "/path/to/PrismLauncher/instances/YourInstance"
 
 # Optional: defaults to JAVA_HOME, macOS java_home -v 21, or javac on PATH.
 # java_home = "/path/to/java-21-jdk"
+
+# Required until the matched FTF API build is installed in the selected instance.
+# This supplies a compile/test dependency only; it does not install anything.
+ftf_jar = "/path/to/FreeTerraForged/build/climate-api-patch/freeterraforged-1.0.0007-climate-api.1-neoforge-1.21.1.jar"

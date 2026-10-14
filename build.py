@@ -18,11 +18,11 @@ import zipfile
 from dataclasses import dataclass
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "0.2.1-test"
+VERSION = "0.3.0-test"
 ARTIFACT = f"terralatitude-{VERSION}-1.21.1.jar"
-FTF_NAME = "freeterraforged-1.0.0-neoforge-1.21.1.jar"
+FTF_NAME = "freeterraforged-1.0.0007-climate-api.1-neoforge-1.21.1.jar"
 NT_NAME = "naturaltemperature-1.1.10-NEOFORGE-MC-1.21.1.jar"
-FTF_SHA256 = "0ab7d71948cc9b43037e0f02611fb3be782c84379e034ab7e487fd98a1fc5529"
+FTF_SHA256 = "5c43eeb2426d191fe7f8a5a992159dece09a4827fd4793e45b2742aaac769a33"
 NT_SHA256 = "6ee8a45d1fce319c5f6654c08c73663254b7fee7c970710249537329b0fb1d2a"
 FTF_TARGET = "etcodehome.freeterraforged.world.worldgen.runtime.WorldgenPlans$SamplerDecoration"
 TARGET_DESCRIPTOR = "(Lnet/minecraft/world/level/biome/Climate$Sampler;III)Lnet/minecraft/world/level/biome/Climate$TargetPoint;"
@@ -33,11 +33,13 @@ class BuildSettings:
     instance: Path
     prism: Path
     java_home: str | None
+    ftf_jar: Path | None = None
 
 
 def add_build_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--instance", help="Prism instance directory containing mmc-pack.json")
     parser.add_argument("--prism-dir", help="Prism data directory containing libraries/ and meta/")
+    parser.add_argument("--ftf-jar", help="Explicit matched FTF API JAR; need not be installed")
     parser.add_argument("--java-home", help="Installed Java 21 JDK directory")
 
 
@@ -52,7 +54,7 @@ def default_prism_dir() -> Path:
 def build_settings(args: argparse.Namespace) -> BuildSettings:
     local_file = ROOT / "build.local.toml"
     local = tomllib.loads(local_file.read_text()) if local_file.is_file() else {}
-    unknown = set(local) - {"instance", "prism", "java_home"}
+    unknown = set(local) - {"instance", "prism", "java_home", "ftf_jar"}
     if unknown:
         raise RuntimeError(f"Unknown build.local.toml settings: {', '.join(sorted(unknown))}")
     for key, value in local.items():
@@ -73,7 +75,9 @@ def build_settings(args: argparse.Namespace) -> BuildSettings:
                            "(copy build-settings.example.toml). No dependencies will be downloaded.")
     prism = selected(args.prism_dir, "TERRALATITUDE_PRISM_DIR", "prism") or default_prism_dir()
     jdk = selected(args.java_home, "TERRALATITUDE_JAVA_HOME", "java_home") or os.environ.get("JAVA_HOME")
-    return BuildSettings(expanded(instance), expanded(prism), str(expanded(jdk)) if jdk else None)
+    ftf = selected(args.ftf_jar, "TERRALATITUDE_FTF_JAR", "ftf_jar")
+    return BuildSettings(expanded(instance), expanded(prism), str(expanded(jdk)) if jdk else None,
+                         expanded(ftf) if ftf else None)
 
 
 def java_tool(jdk: Path, name: str) -> str:
@@ -128,14 +132,14 @@ def dependencies(settings: BuildSettings) -> tuple[list[Path], list[str]]:
         libraries / "net/minecraft/client/1.21.1-20240808.144430/client-1.21.1-20240808.144430-srg.jar",
         libraries / "net/neoforged/neoforge/21.1.257/neoforge-21.1.257-universal.jar",
         libraries / "net/neoforged/fancymodloader/loader/4.0.45/loader-4.0.45.jar",
-        settings.instance / "minecraft/mods" / FTF_NAME,
+        settings.ftf_jar or settings.instance / "minecraft/mods" / FTF_NAME,
         settings.instance / "minecraft/mods" / NT_NAME,
     ]
     for path in required:
         if not path.is_file():
             raise RuntimeError(f"Required installed dependency missing: {path}")
     if sha256(required[3]) != FTF_SHA256:
-        raise RuntimeError("Installed FreeTerraForged changed. Review its integration before updating the pinned checksum.")
+        raise RuntimeError("Selected FreeTerraForged does not match the required native API build. Review its integration before updating the pinned checksum.")
     if sha256(required[4]) != NT_SHA256:
         raise RuntimeError("Installed Natural Temperature changed. Review its integration before updating the pinned checksum.")
     paths = list(required)

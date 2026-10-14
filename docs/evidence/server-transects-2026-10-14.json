@@ -1,0 +1,118 @@
+{
+  "checked_at_utc": "2026-10-14T12:44:22.107289+00:00",
+  "runtime_version_from_log": "0.2.1-test",
+  "profile_sha256": "8ee4dbe9a58c693e482f1c19c8367218eaf2fc598b5855c4099bbf9edadb5819",
+  "transects": [
+    {
+      "file": "server-transect-short-2026-10-14.csv",
+      "sha256": "cf95b99d38671f3f658fa05b842978f16e4df384672475047f8b707edf4a350e",
+      "rows": 65,
+      "mismatch_count": 0,
+      "x": 1224,
+      "z_range": [
+        -2628,
+        5564
+      ],
+      "ground_range": [
+        101,
+        335
+      ],
+      "biomes": [
+        "minecraft:birch_forest",
+        "minecraft:flower_forest",
+        "minecraft:forest",
+        "minecraft:meadow",
+        "minecraft:old_growth_spruce_taiga",
+        "minecraft:plains",
+        "minecraft:snowy_slopes",
+        "regions_unexplored:clover_plains",
+        "regions_unexplored:flower_fields",
+        "regions_unexplored:old_growth_boreal_taiga",
+        "regions_unexplored:poppy_fields",
+        "regions_unexplored:prairie",
+        "regions_unexplored:redwoods",
+        "regions_unexplored:shrubland",
+        "still_life:wooded_mediterranean_steppe"
+      ],
+      "original_filename": "transect-1791981676558-2575085439244256363.csv"
+    },
+    {
+      "file": "server-transect-long-2026-10-14.csv",
+      "sha256": "7bec2909dcb98bf54e7cbeb1ee6e02cb102ac36e5add69ceebe3f80b45924fe9",
+      "rows": 129,
+      "mismatch_count": 0,
+      "x": 1224,
+      "z_range": [
+        -6724,
+        9660
+      ],
+      "ground_range": [
+        -38,
+        335
+      ],
+      "biomes": [
+        "hybrid_aquatic:deep_coral_reef",
+        "minecraft:badlands",
+        "minecraft:birch_forest",
+        "minecraft:cold_ocean",
+        "minecraft:deep_cold_ocean",
+        "minecraft:desert",
+        "minecraft:flower_forest",
+        "minecraft:forest",
+        "minecraft:meadow",
+        "minecraft:old_growth_spruce_taiga",
+        "minecraft:plains",
+        "minecraft:snowy_slopes",
+        "minecraft:wooded_badlands",
+        "regions_unexplored:clover_plains",
+        "regions_unexplored:flower_fields",
+        "regions_unexplored:old_growth_boreal_taiga",
+        "regions_unexplored:poppy_fields",
+        "regions_unexplored:prairie",
+        "regions_unexplored:redwoods",
+        "regions_unexplored:shrubland",
+        "still_life:blooming_desert",
+        "still_life:larch_woodlands",
+        "still_life:warm_temperate_clearings",
+        "still_life:wooded_mediterranean_steppe"
+      ],
+      "original_filename": "transect-1791981686924-15955809097521953347.csv"
+    }
+  ],
+  "interpretation": {
+    "temperature_and_humidity": "Actual decorated climate sampler matches intended integrated climate at every exported coordinate.",
+    "altitude": "Nonzero negative elevation corrections are present on uplands. Values use Minecraft climate coordinates, not Celsius.",
+    "biomes": "Predictions from the active generator biome source; these exports do not inspect persisted chunk biomes.",
+    "limitations": [
+      "One north-south line; shorter transect repeats the middle of the longer one.",
+      "Does not validate Streams performance, river geometry, caves, or all climate bands."
+    ],
+    "coral_follow_up": "Installed Hybrid Aquatic 1.7.4 explicitly injects deep_coral_reef into deep_cold_ocean and deep_frozen_ocean; tropical_deep_coral_reef has separate warm-ocean placements. Northern deep_coral_reef samples are consistent with authored cold-water reef placement, not evidence of a climate mismatch."
+  },
+  "total_rows": 194,
+  "unique_sample_coordinates": 129,
+  "overlap": {
+    "shared_rows": 65,
+    "all_fields_identical": true
+  },
+  "long_transect": {
+    "land_samples": 112,
+    "ocean_samples": 17,
+    "land_samples_with_negative_altitude_correction": 112,
+    "distinct_biomes": 24,
+    "still_life_samples": 16,
+    "still_life_biomes": 4,
+    "strongest_altitude_correction": {
+      "x": 1224,
+      "z": 828,
+      "ground_y": 335,
+      "sample_y": 336,
+      "sea_level_temperature": 0.2675026,
+      "integrated_temperature": -0.1213,
+      "altitude_delta": -0.3888026
+    }
+  },
+  "profile_file": "server-climate-profile-2026-10-14.json",
+  "terralatitude_jar_sha256": "a8caea0ab0e4f656331934d5fdcdd5c6b18f8da4e41dba106130f603fdd71cd8",
+  "ftf_jar_sha256": "0ab7d71948cc9b43037e0f02611fb3be782c84379e034ab7e487fd98a1fc5529"
+}

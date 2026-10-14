@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.0-test — 2026-10-14
+
+- Require the paired FTF 1.0.0007-climate-api.1 API test build.
+- Replace six private-field accessors and copied coordinate warping with FTF raw sampling.
+- Delegate altitude to FTF’s explicit-input helper while preserving schema-1 double arithmetic.
+- Keep owner guards, injector order, NT snapshot behavior and climate defaults unchanged.
+- Verify native FTF behavior against the original compiled binary and freeze the original
+  TerraLatitude altitude bytecode as an independent compatibility oracle.
+- Add an explicit build-time FTF path; no instance or server installation.
+- Preview, full sampler timing, and advanced climate/hydrology remain deferred.
+
+## 0.2.2-test
+
+- Separate supplied-input climate composition from owned FTF world access.
+- Add immutable snapshots from populated FTF cells; reuse surface-diagnostic raw
+  inputs without adding a terrain model, cache, or chunk request.
+- Preserve schema-1 and 0.2.1 numerical behavior; retain the existing sampler hook.
+- Add optional `east_west` transects and climate/profile/elevation CSV metadata.
+- Add a compiled-0.2.1 compatibility fixture and native FTF cell-input checks.
+- FTF source/API changes and preview integration remain pending; advanced features
+  comparable in complexity to rain shadows are deferred.
+
+
 ## 0.2.0-test — 2026-10-13
 
 - Compose raw FTF regional climate with world-snapshotted NT temperature/moisture,

@@ -1,0 +1,14 @@
+{
+  "cases": 1286285,
+  "different_quantized_values": 69531,
+  "max_absolute_quantized_delta": 1,
+  "first_example": "T=-0.808, E=0.0, strength=0.0, legacy=-8080, floatSequence=-8079",
+  "method": "Offline arithmetic comparison: current ClimateMath versus the float-intermediate sequence reconstructed from pinned FTF modifyTemp bytecode. Not invocation of FTF or a game-runtime test.",
+  "climate_quantum": 0.0001,
+  "scope": "1001 in-range temperatures, 257 normalized elevations, strengths 0, 0.5, 1, 2.2f, 4; above-ground gate true.",
+  "implication": "Same mathematical curve is not guaranteed bit-identical. A direct native helper must preserve schema-1 arithmetic or require a versioned model transition.",
+  "fixture_source_sha256": "8c3a8ff92af9464cf6251c4b2b14b169453d1d56bcc664908fc2b259c9ce391f",
+  "climate_math_source_sha256": "32ae890420b8dc5dc9d30776018bafdd165d39dedccb74a6f58eca0b15f53858",
+  "reference_float_sequence": "float input=(float)((clamp(t,-1,1)+1.0)*0.5); float exponent=(float)Math.pow(2.0,(double)(e*strength)); float shaped=(float)Math.pow(clamp(input,0,1),exponent); float normalized=shaped*2.0F-1.0F; long quantized=(long)(normalized*10000.0F);",
+  "ftf_jar_sha256": "0ab7d71948cc9b43037e0f02611fb3be782c84379e034ab7e487fd98a1fc5529"
+}

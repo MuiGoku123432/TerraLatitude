@@ -2,14 +2,58 @@
 
 Latitude bands that respect the landscape.
 
-**0.2.1-test** integrates Natural Temperature's annual climate with FreeTerraForged
+**0.3.0-test** integrates Natural Temperature's annual climate with FreeTerraForged
 regional climate and elevation, before FTF/RU/Lithostitched choose biomes. It targets
-Minecraft 1.21.1, NeoForge 21.1.257, the pinned custom FTF 1.0.0007 build, and NT 1.1.10.
+Minecraft 1.21.1, NeoForge 21.1.257, the paired FTF 1.0.0007-climate-api.1 build, and NT 1.1.10.
 
 This is an experimental build. The owner tested 0.2.0 in-world and its transects
 exposed a sampler injection-order bug: NT returned before the integration ran.
 0.2.1 fixes injector ordering and makes diagnostics compare intended and actual
-climate. The corrected build still needs an owner-run world test.
+climate. Owner-run server transects on 2026-10-14 matched temperature and humidity
+at all 129 unique sampled positions, with elevation cooling present on all 112 land
+samples. This verifies the sampled path, not full-world behavior or performance.
+
+See the [next integration specification](docs/INTEGRATION-SPEC.md) for altitude
+contract cleanup, preview consistency, diagnostics, and targeted pack refinements.
+
+## Development status
+
+This repository contains experimental source and offline verification fixtures;
+it does not publish game dependencies or downloadable release artifacts.
+Version 0.3.0 requires the exact locally built FTF companion recorded in
+[the integration evidence](docs/M1-NATIVE-INTEGRATION.md).
+
+[FTF PR #301](https://github.com/ETcodehome/FreeTerraForged/pull/301) proposes the
+reusable raw-climate API and native float altitude helper. It deliberately omits
+the double-precision compatibility helper currently used by TerraLatitude 0.3.0.
+That PR alone is therefore **not a drop-in dependency for this version**. The next
+compatibility step is to keep legacy rounding in TerraLatitude and use only the
+shared API proposed upstream. See [next work](docs/DEVELOPMENT.md#next-work).
+
+## 0.3.0 native FTF integration
+
+FTF now exposes its raw regional climate and explicit elevation helpers.
+TerraLatitude calls them directly, removing all six private-field accessors and
+its copied edge/warp arithmetic. Schema-1 profiles and numerical output are
+preserved. This version requires the matched FTF API test JAR; the original FTF
+JAR is insufficient. Both projects changed, but neither JAR was installed.
+
+See [native integration results and artifact pair](docs/M1-NATIVE-INTEGRATION.md).
+All new verification is offline. Preview and world-generation performance remain
+unverified; advanced climate/hydrology work is deferred.
+
+## Previous 0.2.2 integration foundation
+
+Climate composition now accepts supplied native and regional inputs, separately
+from FTF world access. Populated FTF cells can be read without another terrain
+lookup or mutation. Surface diagnostics reuse one raw acquisition for their height
+and expected climate, then independently query the actual decorated sampler.
+
+The release preserves schema-1 profiles and the 0.2.1 arithmetic; it adds no new
+climate model or FTF dependency. It also adds east–west transects and exports the
+model/profile identity, normalized elevation, and saved altitude strength.
+See [implementation progress and testing](docs/M1-PROGRESS.md). This release has
+passed offline checks only; the server observations below are from 0.2.1.
 
 ## 0.2.1 correction
 
@@ -74,7 +118,9 @@ NT's native mode algorithms execute from the dependency; they are not bundled.
 1. Use a separate test instance and a fresh FTF world. Keep a copy of the intended
    preset/configs for comparisons. Previously generated chunks retain their biomes.
 2. Remove any prior TerraLatitude JAR and the original `fnf_altitude` prototype.
-   Add `dist/terralatitude-0.2.1-test-1.21.1.jar`. Do not load both altitude addons.
+   Add `dist/terralatitude-0.3.0-test-1.21.1.jar` and replace FTF with the matched
+   `freeterraforged-1.0.0007-climate-api.1-neoforge-1.21.1.jar` from the FTF
+   project’s `build/climate-api-patch/` folder. Keep one JAR per mod.
 3. Start normally. The startup registration message alone does not prove runtime
    sampling succeeded. A new world profile is written at its first owned FTF sample.
 4. Run `/terralatitude status`, then `/terralatitude sample` in the Overworld.
@@ -123,12 +169,16 @@ Commands require operator permission level 2 and run on the server:
 
 - `/terralatitude status` — show the loaded profile and compare intended versus sampled surface climate.
 - `/terralatitude sample` — inspect predicted surface climate and biome at your X/Z.
+- `/terralatitude transect 4096 128 east_west` — export an east–west line at your Z.
 - `/terralatitude transect 4096 128` — export a north–south line across your X/Z,
   with ground and sampled heights, raw/band/final climate, predicted biome,
   integrated temperature/moisture, sea-level temperature, altitude correction, and
   sampled-minus-integrated deltas. A zero delta means the values agree; optional
   intermediate columns may be NaN when that calculation is bypassed (zero influence
   or explicit underground randomization).
+
+CSV exports also include normalized elevation, saved altitude strength, the climate
+model identifier, and the full profile fingerprint.
 
 Transects allow at most 129 samples. CSV files go under
 `<world>/terralatitude-diagnostics/`. Commands evaluate terrain/noise and biome
@@ -138,10 +188,10 @@ units, not Celsius, and predictions do not rewrite existing chunks.
 
 ## Offline build and checks
 
-Requires Python 3.11+ and Java 21. This checkout has an ignored `build.local.toml`
-pointing to the prepared F&F Terra Prism instance. For another checkout, copy
-`build-settings.example.toml` to `build.local.toml` and set its dependency paths.
-No game or dependency downloads are performed; no upstream JARs are distributed.
+Requires Python 3.11+ and Java 21. Copy `build-settings.example.toml` to ignored `build.local.toml` and set paths
+to an existing prepared Prism instance and its dependencies.
+Set `ftf_jar` to the matched API artifact without installing it into the instance.
+No game or dependency downloads are performed; the addon bundles no upstream classes.
 On this Mac, use `/opt/homebrew/bin/python3` if the default Python is too old.
 
 ```sh
@@ -149,14 +199,19 @@ python3 build.py
 python3 verify.py
 python3 tools/test_nt_adapter.py
 python3 tools/test_sampler_order.py
+python3 tools/test_composition.py --baseline-jar /path/to/terralatitude-0.2.1-test-1.21.1.jar
 python3 -m unittest discover -s tests -p 'test_audit_pack.py' -v
 python3 tools/audit_pack.py
 ```
 
-Build, verify, and NT parity accept `--instance`, `--prism-dir`, `--java-home`.
+Build, verify, and NT parity accept `--instance`, `--prism-dir`, `--java-home`, and `--ftf-jar`.
 CLI overrides `TERRALATITUDE_*` environment variables, then `build.local.toml`.
 The pack audit accepts `--instance`. See [validation](docs/VALIDATION.md) and the
 [pack audit guide](docs/PACK-AUDIT.md).
+
+The composition fixture requires the exact recorded 0.2.1 JAR, compares its compiled
+arithmetic against the new boundary, and checks supplied cells using native FTF
+height normalization. It does not launch a world or prove live ownership binding.
 
 The NT parity fixture applies compiled redirect handlers to test-only dependency
 bytecode and supplies raw inputs without starting Minecraft. It verifies numbers
@@ -169,9 +224,10 @@ rainforest/tropical-river placements. The offline audit reports these restrictio
 TerraLatitude does not enable a tropical palette or override Biome Replacer.
 See [development handoff](docs/DEVELOPMENT.md) for outstanding runtime checks.
 
-Optional later work: a direct upstream FTF climate API, integrated FTF preview and
-cell consumers, biome ecology profiles, and season/weather adapters. Directional
-rain shadows and physiological treelines are not implemented.
+The [next integration specification](docs/INTEGRATION-SPEC.md) prioritizes
+behavior-preserving altitude/input integration, preview and climate-map agreement,
+and existing biome/bank placement tools. Geographic moisture models, directional
+rain shadows, seasons/weather, and changes to Streams hydrology are deferred.
 
 Source and addon: MIT. FTF, NT, Minecraft, and other dependencies retain their own
 licenses and are not included in the distributed JAR.

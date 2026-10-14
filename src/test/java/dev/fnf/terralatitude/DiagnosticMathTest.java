@@ -25,6 +25,29 @@ public final class DiagnosticMathTest {
             DiagnosticMath.surfaceSampleY(Integer.MAX_VALUE, 62);
             throw new AssertionError("unrepresentable surface coordinate must fail clearly");
         } catch (ArithmeticException expected) {}
-        System.out.println("DiagnosticMathTest passed (15 cases)");
+        if (DiagnosticMath.transectCount(8192,128) != 129
+                || DiagnosticMath.transectCount(4096,128) != 65
+                || DiagnosticMath.transectCount(8192,16) <= 129
+                || DiagnosticMath.transectCount(17,16) != 3)
+            throw new AssertionError("transect counts/cap changed");
+        for (var axis : DiagnosticMath.Axis.values()) {
+            int count = 0;
+            for (int offset = -4096; offset <= 4096; offset += 128) {
+                var p = DiagnosticMath.transectPosition(-123,456,offset,axis);
+                if (axis == DiagnosticMath.Axis.NORTH_SOUTH ? p.x()!=-123 || p.z()!=456+offset
+                        : p.x()!=-123+offset || p.z()!=456) throw new AssertionError("transect axis");
+                count++;
+            }
+            if (count != 65) throw new AssertionError("transect loop count");
+        }
+        try {
+            DiagnosticMath.transectPosition(Integer.MAX_VALUE,0,1,DiagnosticMath.Axis.EAST_WEST);
+            throw new AssertionError("coordinate overflow accepted");
+        } catch (ArithmeticException expected) {}
+        try {
+            DiagnosticMath.transectCount(16,0);
+            throw new AssertionError("zero step accepted");
+        } catch (IllegalArgumentException expected) {}
+        System.out.println("DiagnosticMathTest passed (surface alignment, both transect axes, cap and overflow)");
     }
 }

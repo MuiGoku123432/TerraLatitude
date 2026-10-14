@@ -11,15 +11,14 @@ if sys.version_info < (3, 11):
     raise SystemExit("Python 3.11+ is required.")
 import tomllib
 import zipfile
-from build import (ARTIFACT, FTF_NAME, FTF_TARGET, NT_NAME, ROOT, TARGET_DESCRIPTOR,
+from build import (ARTIFACT, FTF_TARGET, NT_NAME, ROOT, TARGET_DESCRIPTOR,
                    VERSION, add_build_arguments, build_settings, dependencies,
                    java_home, java_tool, run, sha256, source_fingerprints, test_main_classes)
 
-ACTIVE_MIXINS = {"IntegratedSamplerMixin", "ClimateModuleAccessor", "NtTemperatureSettingsMixin", "NtHumiditySettingsMixin"}
+ACTIVE_MIXINS = {"IntegratedSamplerMixin", "NtTemperatureSettingsMixin", "NtHumiditySettingsMixin"}
 SAMPLER = "net.minecraft.world.level.biome.Climate$Sampler"
 SAMPLE_DESCRIPTOR = "(III)Lnet/minecraft/world/level/biome/Climate$TargetPoint;"
 RAW_MODULE = "etcodehome.freeterraforged.world.worldgen.cell.climate.ClimateModule"
-NOISE_DESCRIPTOR = "Letcodehome/freeterraforged/world/worldgen/noise/module/Noise;"
 NT_METHODS = {"calculateCircular", "calculateCircular6", "calculateSquare6", "calculateBanded"}
 
 
@@ -75,7 +74,7 @@ def main() -> int:
             classes = [p for p in names if p.endswith(".class")]
             require(len(names) == len(set(names)), "Archive has no duplicate entries")
             require(classes and all(p.startswith("dev/fnf/terralatitude/") for p in classes), "No upstream classes are bundled")
-            required = {"TerraLatitude", "IntegratedClimate", "ClimateMath", "ClimateProfile", "WorldProfiles", "ClimateCommands", "RawClimateAccess", "NaturalClimateAdapter"}
+            required = {"TerraLatitude", "IntegratedClimate", "ClimateComposition", "ClimateMath", "ClimateProfile", "WorldProfiles", "ClimateCommands", "RawClimateAccess", "NaturalClimateAdapter"}
             require(all(f"dev/fnf/terralatitude/{n}.class" in names for n in required), "Integrated climate, world profiles, diagnostics, and adapters are packaged")
             require(all(struct.unpack(">H", z.read(p)[6:8])[0] == 65 for p in classes), "All packaged classes target Java 21")
             require(not any(p.endswith("Test.class") for p in classes), "Offline test classes are excluded")
@@ -89,7 +88,7 @@ def main() -> int:
             depmeta = {d["modId"]: d for d in metadata["dependencies"]["terralatitude"]}
             old = depmeta.get("fnf_altitude", {})
             require(old.get("type") == "incompatible" and old.get("versionRange") == "[0,)" and old.get("side") == "BOTH", "Old altitude prototype is incompatible to prevent duplicate cooling")
-            for name, version in {"minecraft": "[1.21.1]", "freeterraforged": "[1.0.0007]", "naturaltemperature": "[1.1.10]"}.items():
+            for name, version in {"minecraft": "[1.21.1]", "freeterraforged": "[1.0.0007-climate-api.1]", "naturaltemperature": "[1.1.10]"}.items():
                 dep = depmeta.get(name, {})
                 require(dep.get("type") == "required" and dep.get("versionRange") == version and dep.get("side") == "BOTH", f"Both sides require tested {name} {version}")
             neo = depmeta.get("neoforge", {})
@@ -98,12 +97,12 @@ def main() -> int:
             config = json.loads(z.read("terralatitude.mixins.json"))
             require(config.get("required") is True and config.get("injectors", {}).get("defaultRequire", 0) >= 1, "Missing required mixin targets fail clearly")
             require(config.get("compatibilityLevel") == "JAVA_21", "Mixin Java 21 compatibility is declared")
-            require(config.get("package") == "dev.fnf.terralatitude.mixin" and set(config.get("mixins", [])) == ACTIVE_MIXINS and len(config["mixins"]) == len(ACTIVE_MIXINS) and not config.get("client") and not config.get("server"), "Only the four integrated mixins are active on both sides; old return hook is inactive")
+            require(config.get("package") == "dev.fnf.terralatitude.mixin" and set(config.get("mixins", [])) == ACTIVE_MIXINS and len(config["mixins"]) == len(ACTIVE_MIXINS) and not config.get("client") and not config.get("server"), "Only the three integrated mixins are active on both sides; old return hook is inactive")
             require(all(f"dev/fnf/terralatitude/mixin/{n}.class" in names for n in ACTIVE_MIXINS), "Every active mixin class is packaged")
 
-        ftf = settings.instance / "minecraft/mods" / FTF_NAME
+        ftf = deps[3]
         nt = settings.instance / "minecraft/mods" / NT_NAME
-        for path, name, expected in ((ftf, "freeterraforged", "1.0.0007"), (nt, "naturaltemperature", "1.1.10")):
+        for path, name, expected in ((ftf, "freeterraforged", "1.0.0007-climate-api.1"), (nt, "naturaltemperature", "1.1.10")):
             with zipfile.ZipFile(path) as z:
                 metadata = tomllib.loads(z.read("META-INF/neoforge.mods.toml").decode())
                 require(next(m["version"] for m in metadata["mods"] if m["modId"] == name) == expected, f"Pinned installed {name} declares {expected}")
@@ -143,20 +142,24 @@ def main() -> int:
                 "Integrated injector pass 900 precedes NT's cancellable callback pass; mixin priority alone is insufficient")
 
         module = inspect(RAW_MODULE)
-        accessor = inspect("dev.fnf.terralatitude.mixin.ClimateModuleAccessor")
-        ann = mixin_annotation(accessor)
-        require(RAW_MODULE.replace(".", "/") in ann and "remap=false" in ann, "Raw accessor targets the custom FTF ClimateModule")
-        methods = method_sections(accessor)
-        fields = {"temperature": (NOISE_DESCRIPTOR, "temperature"), "moisture": (NOISE_DESCRIPTOR, "moisture"), "warpX": (NOISE_DESCRIPTOR, "warpX"), "warpZ": (NOISE_DESCRIPTOR, "warpZ"), "warpStrength": ("F", "warpStrength"), "biomeFreq": ("F", "biomeFrequency")}
-        accessors = {}
-        for field, (desc, suffix) in fields.items():
-            decl = re.search(r"\n  private [^\n]+ " + re.escape(field) + r";\n\s+descriptor: ([^\n]+)", module)
-            getter = methods.get("terralatitude$" + suffix, [])
-            valid = bool(decl) and decl.group(1) == desc and len(getter) == 1
-            valid = valid and getter[0][0] == "()" + desc and f'value="{field}"' in getter[0][1]
-            accessors[field] = {"descriptor": desc, "matches": bool(valid)}
-        report["raw_accessor_fields"] = accessors
-        require(all(v["matches"] for v in accessors.values()), "All six raw-noise accessor fields and descriptors match installed FTF")
+        climate_name = "etcodehome.freeterraforged.world.worldgen.cell.climate.Climate"
+        climate = inspect(climate_name)
+        raw_desc = "(Letcodehome/freeterraforged/world/worldgen/cell/Cell;FF)Letcodehome/freeterraforged/world/worldgen/cell/climate/ClimateModule$RawSample;"
+        raw = method_sections(climate).get("sampleRaw", [])
+        require(len(raw) == 1 and raw[0][0] == raw_desc and "ACC_PUBLIC" in raw[0][1],
+                "FTF exposes the public populated-cell raw climate API with the expected descriptor")
+        require(raw and "ClimateModule.sampleRaw:" in raw[0][1] and "putfield" not in raw[0][1]
+                and "WorldLookup" not in raw[0][1], "Native raw climate applies its edge policy without mutation or terrain lookup")
+        require("dev/fnf/terralatitude/mixin/ClimateModuleAccessor.class" not in names
+                and "dev/fnf/terralatitude/RawClimateMath.class" not in names,
+                "Private FTF accessors and copied warp arithmetic are absent from the addon")
+        shaping = inspect("etcodehome.freeterraforged.world.worldgen.cell.climate.TemperatureShaping")
+        require("PresetManager" not in shaping and "dev/fnf/terralatitude" not in shaping
+                and "com/naturaltemperature" not in shaping,
+                "Native elevation helper is independent of presets and integration mods")
+        math = inspect("dev.fnf.terralatitude.ClimateMath")
+        require("TemperatureShaping.applyNormalized:" in math and "Math.pow:" not in math,
+                "TerraLatitude delegates altitude arithmetic to FTF")
         methods = method_sections(module)
         desc = "(Letcodehome/freeterraforged/world/worldgen/cell/Cell;FFFFZ)V"
         body = next((b for d, b in methods.get("apply", []) if d == desc), "")
@@ -166,6 +169,31 @@ def main() -> int:
         selection = method_sections(inspect("etcodehome.freeterraforged.world.worldgen.runtime.WorldgenBiomeSelection$Executable"))
         resolve, select = selection.get("resolveOwned", []), selection.get("select", [])
         require(len(resolve) == 1 and "SamplerDecoration.sample:" in resolve[0][1] and len(select) == 1 and "ProviderSelection.resolveRequired:" in select[0][1] and "SelectionDecoration.apply:" in select[0][1], "FTF samples climate before provider and replacement selection")
+
+        composition = inspect("dev.fnf.terralatitude.ClimateComposition")
+        require(all(token not in composition for token in ("RawClimateAccess.sample:", "WorldProfiles.",
+                    "GeneratorContext", "WorldLookup", "getChunk", "PresetManager")),
+                "Supplied-input composition has no world/terrain acquisition or global preset dependency")
+        raw_methods = method_sections(inspect("dev.fnf.terralatitude.RawClimateAccess"))
+        capture = raw_methods.get("fromCell", [])
+        capture_body = capture[0][1] if len(capture) == 1 else ""
+        require(capture_body and "Levels.getNormalizedInlandElevation:" in capture_body
+                and "Levels.scale:" in capture_body and "Levels.ground:" in capture_body
+                and "putfield" not in capture_body and "WorldLookup" not in capture_body
+                and "sampleSurfaceY:" not in capture_body and "getResource:" not in capture_body,
+                "Populated-cell snapshot uses native FTF height/gate inputs without lookup, pooling, or mutation")
+        require("Climate.sampleRaw:" in capture_body and "Noise.compute:" not in capture_body,
+                "Populated-cell snapshot delegates raw regional sampling to the native FTF API")
+        integrated_methods = method_sections(inspect("dev.fnf.terralatitude.IntegratedClimate"))
+        surface = integrated_methods.get("evaluateSurface", [])
+        surface_body = surface[0][1] if len(surface) == 1 else ""
+        require(surface_body.count("RawClimateAccess.sample:") == 1
+                and "ClimateComposition.compose:" in surface_body and "Method evaluate:" not in surface_body,
+                "Surface expectation performs one raw acquisition and composes from that snapshot")
+        commands = inspect("dev.fnf.terralatitude.ClimateCommands")
+        require("IntegratedClimate.evaluateSurface:" in commands and "RawClimateAccess.sample:" not in commands
+                and "SamplerDecoration.sample:" in commands,
+                "Diagnostics reuse expected surface inputs while independently checking the actual decorated sampler")
 
         redirects = {}
         for axis in ("Temperature", "Humidity"):

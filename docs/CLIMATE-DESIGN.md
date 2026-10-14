@@ -1,4 +1,4 @@
-# Shared climate implementation — 0.2.1-test
+# Shared climate implementation — 0.3.0-test
 
 ## Status against priorities 1–5
 
@@ -10,8 +10,11 @@
 | 4. World settings/diagnostics | Persisted NT+TerraLatitude profile, preset fingerprint, status/sample/CSV commands, pack audit. | No client preview synchronization; full pack rules and all external mod settings are not frozen. |
 | 5. Transitions | Optional deterministic five-tap smoothing of NT climate, with existing NT/FTF variation. | This does not guarantee an ecological transition biome exists in the installed palette. |
 
-Owner-run 0.2.0 transects found a runtime ordering failure; the corrected 0.2.1
-build requires a fresh in-world check. Automated verification does not launch a game.
+Owner-run 0.2.0 transects found a runtime ordering failure. Server transects with
+0.2.1 on 2026-10-14 match intended temperature/moisture at all 129 unique sampled
+positions, including negative elevation corrections on all 112 land samples. See
+[validation](VALIDATION.md) for the limits of that evidence and the
+[next integration specification](INTEGRATION-SPEC.md) for planned work.
 
 ## Sampling and ownership
 
@@ -36,18 +39,30 @@ ServerStopped drops the server session. New disabled worlds bypass NT capture.
 
 ## Raw FTF inputs without mutating shared cells
 
-`RawClimateAccess` uses FTF's cached-or-calculated terrain lookup once, then reads
-the original regional temperature/moisture noise graphs via six Mixin accessors
-on `ClimateModule`. It reproduces FTF's regional-edge and coordinate warping before
-sampling those graphs. This is direct raw noise evaluation, not algebraic reversal
-of clamped/quantized climate. It repeats climate-noise work but does not force a
-second terrain generation pass or load chunks.
+`RawClimateAccess.sample` uses FTF's cached-or-calculated terrain lookup once, then reads
+the original regional temperature/moisture noise graphs through the paired FTF
+`Climate.sampleRaw` API. FTF owns the regional-edge displacement and coordinate
+warping; TerraLatitude no longer copies them or reads private noise fields. This is direct raw noise evaluation, not algebraic reversal
+of clamped/quantized climate. The lookup can compute uncached terrain, and raw noise
+is evaluated again. There is no explicit chunk-load request; this is not a claim
+that the operation is free of generation cost.
 
 FTF's region/domain coordinates are geometric; installed bytecode computes them
 independently of climate temperature/moisture. The owned selection path computes
 the domain, obtains the climate point, and passes that point into provider and
 selection-decorator stages. Native cached Cell temperature/moisture remain intact.
 Preview and consumers reading those cells do not automatically see TerraLatitude.
+
+`RawClimateAccess.fromCell` can instead snapshot an already populated FTF cell.
+It still uses FTF `Levels` for height conversion and normalization and never
+mutates or retains that cell. This is a supplied-input boundary, not a new hook
+inside FTF. The new FTF API replaces the former private-field adapter.
+
+`IntegratedClimate` retains ownership and native sampling. `ClimateComposition`
+accepts the immutable profile, native target, coordinates, and raw snapshot without
+acquiring terrain or binding owners. `evaluateSurface` reuses the raw snapshot for
+surface height and expected climate; diagnostics still call the actual decorated
+sampler separately. No cache or new terrain/noise graph is introduced.
 
 ## Composition
 
@@ -64,7 +79,9 @@ surfaceT = FTF elevation curve(seaT, predicted ground elevation, saved strength)
 moisture = lerp(native FTF moisture, NTpair.humidity, n * h)
 ```
 
-The FTF curve uses normalized inland elevation and its native above-ground gate.
+The retained schema-1 arithmetic calls FTF `TemperatureShaping.applyNormalized`
+with normalized inland elevation, the native above-ground gate and saved strength.
+FTF also retains its separate native float precision contract for its own cells.
 It is applied once. Terrain below that gate receives no additional height cooling.
 Humidity retains FTF's existing terrain shaping through its native input; no second
 rain-shadow/coastal correction is layered on. Existing upstream global FTF behavior
@@ -110,13 +127,13 @@ merely from the presence of a river.
 
 ## Validation boundaries and next questions
 
-- Confirm corrected 0.2.1 callback ordering during owner-run generation; 0.2.0
-  loaded all mixins but NT canceled before TerraLatitude's callback.
+- Extend the confirmed 0.2.1 sampler comparisons to generated chunk biomes and
+  the other query paths. Numerical agreement alone is not an independent hook trace.
 - Confirm sea-level, upland, mountain, cave, river, and coastal selection across seeds.
 - Measure repeated regional-noise evaluation and five-mode-evaluation overhead.
 - Compare operator CSV output with generated biome IDs and later pack replacements.
 - Verify save/reopen persistence and intentionally invalid/mismatched profile handling.
-- Decide whether a future upstream FTF hook should also update preview/cell consumers.
+- Establish a bounded owner/profile path before integrating preview/cell consumers.
 - Consider an optional biome profile only after explicitly deciding which exclusions
   to remove. Current jungle, mangrove, tropical-river, and ocean replacements persist.
 

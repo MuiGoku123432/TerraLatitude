@@ -1,0 +1,131 @@
+{
+  "checked_at_utc": "2026-10-14T16:33:27.975817+00:00",
+  "scope": "Read-only feasibility research against installed binaries and official documentation; no implementation, game launch, server restart or configuration changes.",
+  "inputs": [
+    {
+      "file": "freeterraforged-1.0.0-neoforge-1.21.1.jar",
+      "sha256": "0ab7d71948cc9b43037e0f02611fb3be782c84379e034ab7e487fd98a1fc5529"
+    },
+    {
+      "file": "naturaltemperature-1.1.10-NEOFORGE-MC-1.21.1.jar",
+      "sha256": "6ee8a45d1fce319c5f6654c08c73663254b7fee7c970710249537329b0fb1d2a"
+    },
+    {
+      "file": "lithostitched-1.8.0-neoforge-21.1.jar",
+      "sha256": "204699b4e3aa3176e2da5b145c6c66887363821f2bd671ba77bd94750036e169"
+    },
+    {
+      "file": "regions-unexplored-0.6.2-neoforge-21.1.jar",
+      "sha256": "ccf32ed714f2724f54406b9e02a8d6f94d87dc5c72397bc39b3d6ed8f32412ea"
+    },
+    {
+      "file": "still-life-west-0.2.0-test-1.21.1.jar",
+      "sha256": "3af5942f9ba021e86ac60f2a0ef8d717a79de4e82fafdf248978b7e10d9b97aa"
+    },
+    {
+      "file": "StreamsReflowing-1.21.1-neoforge-2.14.4.jar",
+      "sha256": "bf44eb2231d9f4c506cf1c54ff5a857895198e599bc06639b5e3667616022bf1"
+    }
+  ],
+  "comparisons": [
+    {
+      "idea": "Shared climate and preview",
+      "existing": "FTF already uses owned selection plans, sampler decoration and preview owners. Preview color modes read Cell.temperature and Cell.moisture directly. TerraLatitude currently only owns server-world samples.",
+      "new_work": "Provide an immutable climate profile for preview owners; update climate displays separately. A deeper raw-cell integration needs a nonrecursive extension boundary before cache publication.",
+      "feasibility": "Reasonable medium effort; staged integration, not a new climate-selection engine.",
+      "binary_inspection_references": [
+        "BiomePreviewResolver.javap.txt",
+        "WorldgenPlans$SamplerDecoration.javap.txt",
+        "WorldgenCapabilityProvider.javap.txt",
+        "RenderMode$2.javap.txt",
+        "RenderMode$3.javap.txt"
+      ]
+    },
+    {
+      "idea": "Terrain-aware biome families",
+      "existing": "Terrain populators already fill terrain-correlated erosion/weirdness. FTF selects from complete multi-noise targets and supports normalized placement decorators. Installed Still Life uses terrain-appropriate base-biome targets with T/H conditions.",
+      "new_work": "Audit/tune existing targets, ranges, regions and fallback coverage. Add direct landform constraints only for observed unmet requirements.",
+      "feasibility": "High feasibility as data/pack refinement; a parallel biome-selection engine is unnecessary.",
+      "binary_inspection_references": [
+        "TerrainPopulator.javap.txt",
+        "TerrainBiomeRoleSelection.javap.txt",
+        "still-life-placement-inventory.json"
+      ]
+    },
+    {
+      "idea": "Ocean influence",
+      "existing": "Coasts/oceans and continent geometry exist; moisture boost uses inverse normalized inland elevation, not physical ocean distance. OceanClimateProjection changes continentalness, not temperature.",
+      "new_work": "A geographic coastal-exposure or distance approximation, possibly maritime temperature/moisture influence. Validate across islands and continent models; continentDistance must not be assumed to mean block distance to shore.",
+      "feasibility": "Reasonable bounded approximation, medium effort; full ocean circulation/seasonal climate is much larger.",
+      "binary_inspection_references": [
+        "ClimateModule.javap.txt:449",
+        "OceanClimateProjection.javap.txt:157",
+        "AdvancedContinentGenerator.javap.txt",
+        "UpliftContinentGenerator.javap.txt"
+      ]
+    },
+    {
+      "idea": "Directional rain shadows",
+      "existing": "rainShadowStrength raises moisture to an exponent based on normalized elevation. No wind, upwind barrier sampling, or ocean fetch in this modifier.",
+      "new_work": "Terrain-only, bounded coarse upwind sampling with deterministic owner/profile caches; reconcile current elevation drying.",
+      "feasibility": "Plausible experimental feature, highest complexity here; unbenchmarked. Avoid getChunk, full getBaseHeight and Streams network dependencies.",
+      "binary_inspection_references": [
+        "ClimateModule.javap.txt:449",
+        "Heightmap.javap.txt:80"
+      ]
+    },
+    {
+      "idea": "River-valley ecology",
+      "existing": "FTF carves river/valley/wetland geometry and picks tagged river candidates with the climate target. Streams supports bank styles and features selected by biome/tags, plus climate-dependent width.",
+      "new_work": "Prefer custom bank styles/features before a new biome system. A future shared-moisture adapter to Streams is distinct from bank decoration and could affect hydrology.",
+      "feasibility": "High feasibility for bank configuration; medium/higher for ecological biome belts or hydrology adaptation. FTF masks do not establish coverage of every Streams channel.",
+      "additional_observation": "UpliftRiverCarver sets moisture=1 in its riverbed method, but ordinary Heightmap.apply runs rivers then climate and ClimateModule.apply overwrites moisture. This assignment alone does not prove a persistent riparian moisture belt.",
+      "binary_inspection_references": [
+        "TerrainBiomeRoleSelection.javap.txt:39",
+        "UpliftRiverCarver.javap.txt",
+        "NeoForgePlatformHelper.javap.txt:52",
+        "StreamsWorldgen.javap.txt",
+        "README.md",
+        "README.md"
+      ]
+    },
+    {
+      "idea": "Ecological transition biomes",
+      "existing": "FTF warps/smooths region boundaries and terrain regions; TerraLatitude smooths climate values. Lithostitched supports conditional replacements. These do not guarantee a specific ecological sequence.",
+      "new_work": "Use existing placement mechanisms to populate compatible intermediate climate niches. Exact adjacency guarantees require new logic and are not assured by smooth noise.",
+      "feasibility": "Reasonable as targeted data refinement; defer a generalized adjacency engine.",
+      "binary_inspection_references": [
+        "Climate.javap.txt:113",
+        "still-life-placement-inventory.json"
+      ]
+    }
+  ],
+  "additional_verified_gap": "Streams NeoForgePlatformHelper.biomeWetness uses Biome.getModifiedClimateSettings().downfall(), not TerraLatitude continuous humidity. A conversion must not equate Minecraft humidity directly with physical rainfall.",
+  "sources": [
+    "https://github.com/ETcodehome/FreeTerraForged/wiki/biome-selection-and-compatibility-runtime",
+    "https://github.com/ETcodehome/FreeTerraForged/wiki/Climate-Settings",
+    "https://github.com/ETcodehome/FreeTerraForged/wiki/terrain-shaping-and-regions",
+    "https://github.com/ETcodehome/FreeTerraForged/wiki/hydrology-and-shore-geometry",
+    "https://github.com/ETcodehome/FreeTerraForged/wiki/Surface-Settings",
+    "https://github.com/Apollounknowndev/lithostitched/wiki/Biome-Injector-Types",
+    "https://modrinth.com/mod/natural-temperature"
+  ],
+  "inspection_method": "Installed JAR bytecode and official project documentation; no game/server launch or implementation benchmark.",
+  "original_inspection_archive": "Reference Prism instance: packDev/research/ftf-climate-feasibility-20261014",
+  "priorities_superseded_by": "../INTEGRATION-SPEC.md: geographic moisture, directional rain shadows and Streams hydrology adaptation are now deferred.",
+  "historical_research_priorities": [
+    "Integrate TerraLatitude into existing preview/diagnostics with identical immutable world settings.",
+    "Audit and tune biome placements plus Streams bank styles before inventing new selection systems.",
+    "Prototype geographic ocean influence with bounded cost.",
+    "Prototype directional rain shadows only after baseline profiling.",
+    "Consider a separate one-way moisture adapter into Streams; climate must never wait on Streams networks."
+  ],
+  "historical_validation_ideas": [
+    "Compare generation, preview and climate map at identical positions and saved settings.",
+    "Measure overhead before/after any terrain sampling extension.",
+    "Use east-west transects at similar latitude/elevation to establish geographic moisture effect.",
+    "Verify generated chunks as well as predicted biome outputs.",
+    "Keep old saved climate profiles reproducible; new algorithms must be versioned/opt-in."
+  ],
+  "scope_status": "Historical feasibility findings, not the current development scope. INTEGRATION-SPEC.md governs the next iteration; advanced geographic climate and Streams hydrology changes are deferred."
+}
